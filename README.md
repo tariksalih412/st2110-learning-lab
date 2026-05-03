@@ -21,7 +21,7 @@
 | 📡 Network Operations Center | [**Open Demo →**](https://tariksalih412.github.io/st2110-learning-lab/smpte2110-noc-v2.html) | Spine-Leaf topology, PTP hierarchy, fault injection |
 | 📺 Full TV Channel | [**Open Demo →**](https://tariksalih412.github.io/st2110-learning-lab/tv-channel-sim-v2.html) | Studio to satellite to viewer, all platforms |
 | ⚡ Fault Simulator | [**Open Demo →**](https://tariksalih412.github.io/st2110-learning-lab/smpte2110-simulation-v2.html) | PTP loss, path failure, ST 2022-7 protection |
-| 🗺️ Architecture Diagram | [**Open Demo →**](https://tariksalih412.github.io/st2110-learning-lab/smpte2110-diagram-v2.html) | Full ST 2110 system annotated reference |
+| 🗺️ Architecture Diagram | [**Open Demo →**](https://tariksalih412.github.io/st2110-learning-lab/smpte2110-diagram.html) | Full ST 2110 system annotated reference |
 
 **Repository:** [github.com/tariksalih412/st2110-learning-lab](https://github.com/tariksalih412/st2110-learning-lab)
 
