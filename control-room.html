@@ -1,0 +1,1213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ST 2110 — Production Control Room</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-user-select:none;user-select:none;}
+:root{
+  --bg:#02050a;--bg1:#040810;--bg2:#060c16;--bg3:#08101e;
+  --panel:#0a1424;--panel2:#0d1b30;--panel3:#101f36;
+  --ok:#00ff88;--ok2:#00cc6a;
+  --warn:#ffcc00;--warn2:#e6b800;
+  --err:#ff2244;--err2:#cc0033;
+  --red:#ff0000;--tally:#ff3300;
+  --pvw:#00dd00;--pgm:#ff2200;
+  --info:#00aaff;--info2:#0088cc;
+  --cyan:#00ffee;--purple:#cc44ff;
+  --dim:#0f2040;--dim2:#1a3558;--dim3:#243f66;
+  --text:#c0d8f0;--text2:#7090b0;--text3:#405870;
+  --mono:'Share Tech Mono',monospace;
+  --head:'Orbitron',sans-serif;
+  --body:'Rajdhani',sans-serif;
+  --border:rgba(0,170,255,0.1);
+  --border2:rgba(0,170,255,0.2);
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);cursor:default;}
+body{font-family:var(--mono);color:var(--text);display:flex;flex-direction:column;}
+
+/* Scanlines */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.08) 2px,rgba(0,0,0,0.08) 4px);}
+/* CRT vignette */
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9998;
+  background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,0.7) 100%);}
+
+/* ══ TOP HEADER ══ */
+#hdr{
+  height:40px;background:linear-gradient(180deg,#0a1830 0%,var(--bg1) 100%);
+  border-bottom:1px solid var(--border2);
+  display:flex;align-items:center;padding:0 12px;gap:10px;flex-shrink:0;
+  position:relative;z-index:200;
+}
+#hdr::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:.4;}
+.h-logo{font-family:var(--head);font-size:14px;font-weight:900;letter-spacing:4px;
+  color:var(--cyan);text-shadow:0 0 20px var(--cyan);white-space:nowrap;}
+.h-sep{width:1px;height:22px;background:var(--border2);margin:0 4px;}
+.h-tag{font-size:8px;letter-spacing:2px;color:var(--text2);font-family:var(--body);font-weight:600;text-transform:uppercase;}
+.h-time{margin-left:auto;font-family:var(--head);font-size:13px;color:var(--ok);
+  text-shadow:0 0 10px var(--ok);letter-spacing:2px;}
+.h-tc{font-size:11px;color:var(--warn);letter-spacing:2px;font-family:var(--head);}
+.h-status{display:flex;align-items:center;gap:6px;font-size:8px;letter-spacing:1px;}
+.h-dot{width:7px;height:7px;border-radius:50%;}
+.h-dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok);animation:pulse-ok 2s infinite;}
+.h-dot.rec{background:var(--err);box-shadow:0 0 8px var(--err);animation:blink-fast .6s infinite;}
+.h-dot.warn{background:var(--warn);box-shadow:0 0 8px var(--warn);}
+@keyframes pulse-ok{0%,100%{opacity:1;box-shadow:0 0 6px var(--ok)}50%{opacity:.7;box-shadow:0 0 14px var(--ok)}}
+@keyframes blink-fast{0%,100%{opacity:1}50%{opacity:0}}
+@keyframes blink-slow{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ══ MAIN GRID ══ */
+#main{flex:1;display:grid;
+  grid-template-columns:200px 1fr 200px;
+  grid-template-rows:1fr;
+  gap:0;overflow:hidden;}
+
+/* ══ LEFT — TALLY / ROUTER ══ */
+#left{background:var(--bg1);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;}
+
+/* ══ CENTER ══ */
+#center{display:flex;flex-direction:column;overflow:hidden;background:var(--bg2);}
+
+/* ══ RIGHT — AUDIO ══ */
+#right{background:var(--bg1);border-left:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;}
+
+/* ══ PANEL HEADER ══ */
+.ph{height:24px;background:var(--panel);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 10px;gap:8px;flex-shrink:0;}
+.ph-title{font-family:var(--head);font-size:8px;font-weight:700;letter-spacing:3px;
+  text-transform:uppercase;color:var(--text2);}
+.ph-badge{font-size:7px;padding:1px 6px;border-radius:10px;letter-spacing:1px;font-family:var(--body);font-weight:700;}
+.ph-right{margin-left:auto;display:flex;align-items:center;gap:6px;}
+
+/* ══ TALLY PANEL ══ */
+#tally-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px;flex-shrink:0;}
+.tally-btn{
+  height:42px;border-radius:5px;border:1px solid;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  font-family:var(--head);font-size:8px;font-weight:700;letter-spacing:1px;
+  transition:all 0.1s;position:relative;overflow:hidden;
+}
+.tally-btn::before{content:'';position:absolute;inset:0;opacity:0;transition:.2s;}
+.tally-btn:hover::before{opacity:.15;background:#fff;}
+.tally-btn.pgm{background:rgba(255,34,0,0.15);border-color:var(--pgm);color:var(--pgm);
+  box-shadow:0 0 12px rgba(255,34,0,.3),inset 0 0 20px rgba(255,34,0,.05);}
+.tally-btn.pvw{background:rgba(0,221,0,0.12);border-color:var(--pvw);color:var(--pvw);
+  box-shadow:0 0 10px rgba(0,221,0,.25);}
+.tally-btn.idle{background:rgba(0,170,255,0.05);border-color:var(--dim3);color:var(--text3);}
+.tally-btn .tb-num{font-size:14px;font-weight:900;line-height:1;}
+.tally-btn .tb-lbl{font-size:7px;letter-spacing:1px;opacity:.8;}
+.tally-active{animation:tally-flash .15s ease;}
+@keyframes tally-flash{0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
+
+/* ROUTING MATRIX */
+#router-area{flex:1;overflow-y:auto;padding:6px;}
+#router-area::-webkit-scrollbar{width:3px;}
+#router-area::-webkit-scrollbar-thumb{background:var(--dim2);}
+.router-row{display:flex;align-items:center;gap:4px;margin-bottom:4px;}
+.router-dst{font-size:8px;color:var(--text2);width:52px;flex-shrink:0;letter-spacing:.5px;font-family:var(--body);font-weight:600;}
+.router-src{font-size:7px;padding:3px 5px;border-radius:3px;border:1px solid;cursor:pointer;
+  font-family:var(--mono);transition:all .15s;white-space:nowrap;}
+.router-src.active{background:rgba(0,255,136,.12);border-color:var(--ok);color:var(--ok);}
+.router-src.idle{background:rgba(0,0,0,.3);border-color:var(--dim2);color:var(--text3);}
+.router-src:hover{border-color:var(--info)!important;color:var(--info)!important;}
+
+/* ══ CENTER — MULTIVIEWER ══ */
+#mv-area{flex:1;padding:4px;display:grid;gap:3px;overflow:hidden;
+  grid-template-columns:repeat(4,1fr);
+  grid-template-rows:repeat(3,1fr);}
+
+.mv-cell{
+  background:var(--bg);border:1px solid var(--dim);border-radius:4px;
+  display:flex;flex-direction:column;overflow:hidden;position:relative;cursor:pointer;
+  transition:border-color .2s;
+}
+.mv-cell:hover{border-color:var(--info);}
+.mv-cell.pgm{border-color:var(--pgm)!important;box-shadow:0 0 8px rgba(255,34,0,.4);}
+.mv-cell.pvw{border-color:var(--pvw)!important;box-shadow:0 0 8px rgba(0,221,0,.3);}
+.mv-cell.selected{border-color:var(--info)!important;box-shadow:0 0 10px rgba(0,170,255,.4);}
+
+.mv-canvas-wrap{flex:1;position:relative;overflow:hidden;}
+.mv-canvas{display:block;width:100%;height:100%;}
+.mv-label{
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(transparent,rgba(0,0,0,.85));
+  padding:2px 5px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.mv-name{font-family:var(--head);font-size:7px;font-weight:700;letter-spacing:1px;color:#fff;}
+.mv-meta{font-size:6px;color:var(--text2);}
+.mv-tally{
+  position:absolute;top:0;left:0;right:0;height:3px;border-radius:4px 4px 0 0;
+  transition:background .15s;
+}
+.mv-tally.pgm{background:var(--pgm);}
+.mv-tally.pvw{background:var(--pvw);}
+.mv-tally.idle{background:transparent;}
+
+/* UMD — Under Monitor Display */
+.mv-umd{
+  height:16px;background:var(--bg);border-top:1px solid var(--dim);
+  display:flex;align-items:center;justify-content:space-between;padding:0 4px;
+  flex-shrink:0;
+}
+.umd-name{font-family:var(--head);font-size:7px;letter-spacing:1px;font-weight:700;}
+.umd-bars{display:flex;gap:1px;align-items:center;}
+.umd-bar{width:3px;height:8px;border-radius:1px;background:var(--dim);}
+
+/* ══ SWITCHER SECTION ══ */
+#switcher{height:100px;background:var(--panel);border-top:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0;}
+#sw-pvw-row,#sw-pgm-row{flex:1;display:flex;align-items:center;padding:0 8px;gap:4px;}
+#sw-pvw-row{border-bottom:1px solid var(--border);}
+.sw-label{font-family:var(--head);font-size:8px;font-weight:900;letter-spacing:2px;width:30px;flex-shrink:0;}
+.sw-label.pgm-lbl{color:var(--pgm);text-shadow:0 0 8px var(--pgm);}
+.sw-label.pvw-lbl{color:var(--pvw);text-shadow:0 0 8px var(--pvw);}
+.sw-btn{
+  flex:1;height:30px;border-radius:4px;border:1px solid;cursor:pointer;
+  font-family:var(--head);font-size:7px;font-weight:700;letter-spacing:1px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  transition:all .12s;position:relative;overflow:hidden;
+}
+.sw-btn.pgm-active{background:rgba(255,34,0,.2);border-color:var(--pgm);color:var(--pgm);box-shadow:0 0 10px rgba(255,34,0,.4);}
+.sw-btn.pvw-active{background:rgba(0,221,0,.15);border-color:var(--pvw);color:var(--pvw);box-shadow:0 0 8px rgba(0,221,0,.3);}
+.sw-btn.off{background:rgba(0,0,0,.3);border-color:var(--dim2);color:var(--text3);}
+.sw-btn:hover:not(.pgm-active):not(.pvw-active){background:rgba(0,170,255,.1);border-color:var(--info);color:var(--info);}
+.sw-btn .sw-num{font-size:10px;font-weight:900;line-height:1;}
+.sw-btn .sw-src{font-size:6px;opacity:.7;}
+
+/* CUT / AUTO / FTB buttons */
+#sw-fx{display:flex;align-items:center;gap:4px;padding:0 8px 6px;}
+.fx-btn{padding:5px 12px;border-radius:4px;border:1px solid;cursor:pointer;
+  font-family:var(--head);font-size:8px;font-weight:700;letter-spacing:2px;
+  transition:all .12s;}
+.fx-cut{border-color:var(--pgm);color:var(--pgm);background:rgba(255,34,0,.08);}
+.fx-cut:hover{background:rgba(255,34,0,.25);box-shadow:0 0 14px rgba(255,34,0,.5);}
+.fx-auto{border-color:var(--warn);color:var(--warn);background:rgba(255,204,0,.08);}
+.fx-auto:hover{background:rgba(255,204,0,.2);}
+.fx-ftb{border-color:var(--dim3);color:var(--text2);background:rgba(0,0,0,.3);}
+.fx-ftb:hover{border-color:var(--text2);background:rgba(255,255,255,.05);}
+.fx-ftb.active{background:rgba(0,0,0,.8);border-color:var(--dim);color:var(--dim2);}
+#ftb-overlay{position:absolute;inset:0;background:rgba(0,0,0,0);pointer-events:none;
+  transition:background 0.8s;z-index:100;}
+#ftb-overlay.black{background:rgba(0,0,0,.97);}
+#ftb-overlay.black::after{content:'FADE TO BLACK';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-family:var(--head);font-size:20px;letter-spacing:6px;color:rgba(255,34,0,.6);}
+#sw-dur{font-size:9px;color:var(--warn);margin-left:auto;display:flex;align-items:center;gap:6px;}
+.dur-btn{padding:3px 8px;border-radius:3px;border:1px solid var(--dim2);
+  background:rgba(0,0,0,.3);color:var(--text2);cursor:pointer;font-family:var(--mono);font-size:8px;transition:.15s;}
+.dur-btn:hover,.dur-btn.sel{border-color:var(--warn);color:var(--warn);background:rgba(255,204,0,.08);}
+
+/* ══ RIGHT — AUDIO PANEL ══ */
+#vu-area{flex:1;display:flex;flex-direction:column;gap:0;overflow-y:auto;padding:6px;gap:4px;}
+#vu-area::-webkit-scrollbar{width:3px;}#vu-area::-webkit-scrollbar-thumb{background:var(--dim2);}
+
+.vu-ch{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:5px;}
+.vu-name{font-size:7px;letter-spacing:1px;color:var(--text2);margin-bottom:3px;font-family:var(--body);font-weight:600;text-transform:uppercase;}
+.vu-meter{display:flex;gap:2px;align-items:flex-end;height:50px;}
+.vu-bar-wrap{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:.5px;}
+.vu-seg{height:3px;border-radius:.5px;transition:opacity .04s;}
+.vu-dbval{font-size:6px;color:var(--text3);text-align:center;margin-top:2px;font-family:var(--mono);}
+.vu-ch-label{font-size:7px;color:var(--text3);text-align:center;margin-top:1px;}
+.vu-fader{width:100%;-webkit-appearance:none;appearance:none;height:3px;background:var(--dim);border-radius:2px;margin-top:5px;cursor:pointer;}
+.vu-fader::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:14px;background:var(--info);border-radius:2px;cursor:pointer;}
+
+/* WAVEFORM */
+.wf-wrap{border:1px solid var(--border);border-radius:4px;overflow:hidden;margin-bottom:4px;}
+.wf-hdr{height:16px;background:var(--panel);display:flex;align-items:center;padding:0 6px;gap:6px;}
+.wf-title{font-size:7px;letter-spacing:1px;color:var(--text2);font-family:var(--body);font-weight:600;}
+.wf-val{font-size:7px;color:var(--ok);margin-left:auto;font-family:var(--mono);}
+
+/* ══ BOTTOM BAR ══ */
+#bottom{height:22px;background:var(--bg1);border-top:1px solid var(--border);
+  display:flex;align-items:center;padding:0 10px;gap:16px;flex-shrink:0;z-index:200;}
+.bot-item{display:flex;align-items:center;gap:5px;font-size:7px;letter-spacing:1px;color:var(--text2);}
+.bot-dot{width:5px;height:5px;border-radius:50%;}
+.bot-dot.ok{background:var(--ok);box-shadow:0 0 5px var(--ok);}
+.bot-dot.rec{background:var(--err);animation:blink-fast .6s infinite;}
+.bot-dot.warn{background:var(--warn);}
+
+/* ══ TIMECODE ══ */
+#tc-display{
+  background:var(--bg);border:1px solid rgba(255,204,0,.2);border-radius:4px;
+  padding:4px 10px;font-family:var(--head);font-size:16px;color:var(--warn);
+  letter-spacing:3px;text-shadow:0 0 10px var(--warn);white-space:nowrap;
+  flex-shrink:0;margin:0 4px;
+}
+
+/* ══ GPO/GPi ══ */
+#gpo-row{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;padding:5px;}
+.gpo-btn{height:24px;border-radius:3px;border:1px solid;cursor:pointer;
+  font-size:7px;font-family:var(--head);letter-spacing:1px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;transition:.15s;}
+.gpo-btn.off{border-color:var(--dim2);color:var(--dim3);background:rgba(0,0,0,.3);}
+.gpo-btn.on{border-color:var(--ok);color:var(--ok);background:rgba(0,255,136,.1);box-shadow:0 0 8px rgba(0,255,136,.2);}
+
+/* ══ RECORD CONTROLS ══ */
+#rec-area{padding:5px;display:flex;flex-direction:column;gap:3px;}
+.rec-btn{width:100%;height:28px;border-radius:4px;border:1px solid;cursor:pointer;
+  font-family:var(--head);font-size:9px;font-weight:700;letter-spacing:2px;
+  display:flex;align-items:center;justify-content:center;gap:6px;transition:.15s;}
+.rec-btn.rec-on{border-color:var(--err);color:var(--err);background:rgba(255,34,68,.12);
+  animation:rec-glow 1.5s infinite;}
+.rec-btn.rec-off{border-color:var(--dim2);color:var(--text2);background:rgba(0,0,0,.3);}
+.rec-btn.rec-off:hover{border-color:var(--err);color:var(--err);background:rgba(255,34,68,.08);}
+@keyframes rec-glow{0%,100%{box-shadow:0 0 8px rgba(255,34,68,.3)}50%{box-shadow:0 0 18px rgba(255,34,68,.6)}}
+.rec-dot{width:8px;height:8px;border-radius:50%;background:var(--err);flex-shrink:0;}
+.rec-time{margin-left:auto;font-size:8px;color:var(--err);font-family:var(--mono);}
+
+/* ══ TOOLTIP ══ */
+#tip{position:fixed;background:rgba(2,5,10,.97);border:1px solid rgba(0,170,255,.3);
+  border-radius:4px;padding:5px 9px;font-size:9px;pointer-events:none;z-index:9999;display:none;
+  line-height:1.5;max-width:180px;color:var(--text);}
+
+/* Fade in */
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+#main{animation:fadein .4s ease;}
+</style>
+</head>
+<body>
+
+<!-- TOP HEADER -->
+<div id="hdr">
+  <div class="h-logo">PCR·1</div>
+  <div class="h-sep"></div>
+  <div class="h-tag">Production Control Room — ST 2110 Facility</div>
+  <div class="h-sep"></div>
+  <div id="tc-display">00:00:00:00</div>
+  <div class="h-sep"></div>
+  <div class="h-status"><div class="h-dot on"></div><span style="color:var(--ok)">ON AIR</span></div>
+  <div class="h-sep"></div>
+  <div class="h-status"><div class="h-dot rec" id="rec-dot"></div><span id="rec-label" style="color:var(--err)">REC</span></div>
+  <div class="h-sep"></div>
+  <div class="h-status"><div class="h-dot warn"></div><span style="color:var(--warn)">PTP ±12ns</span></div>
+  <div class="h-sep"></div>
+  <div class="h-status"><div class="h-dot on"></div><span style="color:var(--ok)">NMOS 24</span></div>
+  <div class="h-time" id="clock">00:00:00</div>
+</div>
+
+<div id="main">
+
+  <!-- LEFT PANEL -->
+  <div id="left">
+
+    <!-- TALLY -->
+    <div class="ph">
+      <div class="ph-title">Tally System</div>
+      <div class="ph-badge" style="background:rgba(255,34,0,.15);color:var(--pgm)">LIVE</div>
+    </div>
+    <div id="tally-grid">
+      <!-- filled by JS -->
+    </div>
+
+    <!-- ROUTER MATRIX -->
+    <div class="ph">
+      <div class="ph-title">Router Matrix</div>
+      <div class="ph-badge" style="background:rgba(0,255,136,.12);color:var(--ok)">ST 2110</div>
+    </div>
+    <div id="router-area"></div>
+
+    <!-- GPO -->
+    <div class="ph"><div class="ph-title">GPO / Tally Out</div></div>
+    <div id="gpo-row">
+      <div class="gpo-btn on" onclick="toggleGPO(this)">T1</div>
+      <div class="gpo-btn on" onclick="toggleGPO(this)">T2</div>
+      <div class="gpo-btn off" onclick="toggleGPO(this)">T3</div>
+      <div class="gpo-btn off" onclick="toggleGPO(this)">T4</div>
+      <div class="gpo-btn off" onclick="toggleGPO(this)">G1</div>
+      <div class="gpo-btn off" onclick="toggleGPO(this)">G2</div>
+      <div class="gpo-btn off" onclick="toggleGPO(this)">G3</div>
+      <div class="gpo-btn off" onclick="toggleGPO(this)">G4</div>
+    </div>
+
+    <!-- RECORD -->
+    <div class="ph"><div class="ph-title">Record Control</div></div>
+    <div id="rec-area">
+      <button class="rec-btn rec-on" id="rec-main-btn" onclick="toggleRec()">
+        <div class="rec-dot"></div>REC · MAIN
+        <span class="rec-time" id="rec-dur">00:00:00</span>
+      </button>
+      <button class="rec-btn rec-off" onclick="this.classList.toggle('rec-on');this.classList.toggle('rec-off')">
+        ○ REC · ISO CAM-1
+      </button>
+      <button class="rec-btn rec-off" onclick="this.classList.toggle('rec-on');this.classList.toggle('rec-off')">
+        ○ REC · ISO CAM-2
+      </button>
+    </div>
+
+  </div>
+
+  <!-- CENTER -->
+  <div id="center" style="position:relative;">
+    <div id="ftb-overlay"></div>
+
+    <div class="ph">
+      <div class="ph-title">Multiviewer — 12 Sources</div>
+      <div class="ph-badge" style="background:rgba(0,170,255,.12);color:var(--info)">4K MONITORING</div>
+      <div class="ph-right">
+        <span style="font-size:7px;color:var(--text3)">LAYOUT:</span>
+        <span style="font-size:7px;color:var(--info);cursor:pointer" onclick="setLayout(4,3)">4×3</span>
+        <span style="font-size:7px;color:var(--text3)"> | </span>
+        <span style="font-size:7px;cursor:pointer" onclick="setLayout(3,2)">3×2</span>
+        <span style="font-size:7px;color:var(--text3)"> | </span>
+        <span style="font-size:7px;cursor:pointer" onclick="setLayout(2,2)">2×2</span>
+      </div>
+    </div>
+
+    <!-- MULTIVIEWER GRID -->
+    <div id="mv-area"></div>
+
+    <!-- SWITCHER -->
+    <div id="switcher">
+      <div class="ph">
+        <div class="ph-title">Vision Switcher — ME-1</div>
+        <div id="sw-dur">
+          <span style="color:var(--text2)">DURATION:</span>
+          <div class="dur-btn sel" onclick="setDur(this,'4f')">4F</div>
+          <div class="dur-btn" onclick="setDur(this,'8f')">8F</div>
+          <div class="dur-btn" onclick="setDur(this,'1s')">1S</div>
+          <div class="dur-btn" onclick="setDur(this,'2s')">2S</div>
+          <div class="dur-btn" onclick="setDur(this,'fX')">FX</div>
+        </div>
+      </div>
+      <div id="sw-pvw-row">
+        <div class="sw-label pvw-lbl">PVW</div>
+        <!-- filled by JS -->
+      </div>
+      <div id="sw-pgm-row">
+        <div class="sw-label pgm-lbl">PGM</div>
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+    <div id="sw-fx">
+      <button class="fx-btn fx-cut" onclick="doCut()">✂ CUT</button>
+      <button class="fx-btn fx-auto" onclick="doAuto()">▶ AUTO</button>
+      <button class="fx-btn fx-ftb" id="ftb-btn" onclick="doFTB()">■ FTB</button>
+      <button class="fx-btn" style="border-color:var(--purple);color:var(--purple);background:rgba(204,68,255,.08)" onclick="doEffect('DSK')">DSK</button>
+      <button class="fx-btn" style="border-color:var(--cyan);color:var(--cyan);background:rgba(0,255,238,.05)" onclick="doEffect('KEY')">KEY</button>
+      <button class="fx-btn" style="border-color:var(--dim3);color:var(--text2);background:rgba(0,0,0,.3)" onclick="doEffect('DVE')">DVE</button>
+      <button class="fx-btn" style="border-color:var(--dim3);color:var(--text2);background:rgba(0,0,0,.3)" onclick="doEffect('WIPE')">WIPE</button>
+      <button class="fx-btn" style="border-color:var(--dim3);color:var(--text2);background:rgba(0,0,0,.3)" onclick="doEffect('MIX')">MIX</button>
+    </div>
+
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div id="right">
+
+    <!-- WAVEFORM MONITOR -->
+    <div class="ph"><div class="ph-title">Waveform Monitor</div><div class="ph-badge" style="background:rgba(0,255,136,.1);color:var(--ok)">PGM</div></div>
+    <div class="wf-wrap" style="margin:5px;flex-shrink:0">
+      <div class="wf-hdr">
+        <span class="wf-title">LUMA WAVEFORM</span>
+        <span class="wf-val" id="wf-val">700mV</span>
+      </div>
+      <canvas id="wf-canvas" width="180" height="50" style="display:block;width:100%;"></canvas>
+    </div>
+
+    <!-- VECTORSCOPE -->
+    <div class="wf-wrap" style="margin:5px;flex-shrink:0">
+      <div class="wf-hdr">
+        <span class="wf-title">VECTORSCOPE</span>
+        <span class="wf-val" id="vs-sat">SAT: 82%</span>
+      </div>
+      <canvas id="vs-canvas" width="180" height="70" style="display:block;width:100%;"></canvas>
+    </div>
+
+    <!-- AUDIO VU -->
+    <div class="ph"><div class="ph-title">Audio Meters</div>
+      <div class="ph-badge" style="background:rgba(0,255,136,.1);color:var(--ok)">ST2110-30</div></div>
+    <div id="vu-area"></div>
+
+  </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div id="bottom">
+  <div class="bot-item"><div class="bot-dot ok"></div>PTP: LOCKED GM-01 ±12ns</div>
+  <div class="bot-item"><div class="bot-dot ok"></div>ST 2022-7: DUAL PATH</div>
+  <div class="bot-item"><div class="bot-dot ok"></div>STREAMS: 18/18</div>
+  <div class="bot-item"><div class="bot-dot rec"></div>REC: <span id="bot-rec-t" style="color:var(--err)">00:00:00</span></div>
+  <div class="bot-item"><div class="bot-dot ok"></div>NMOS IS-04: 24 NODES</div>
+  <div class="bot-item"><div class="bot-dot ok"></div>FABRIC: 147.3 Gbps / 400G</div>
+  <div style="margin-left:auto;font-size:7px;color:var(--dim3)">PCR-01 · BROADCAST-HQ · SMPTE ST 2110 · v4.2.1</div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+// ══════════════════════════════════════════════════════
+//   SOURCES DEFINITION
+// ══════════════════════════════════════════════════════
+const SOURCES = [
+  {id:1, name:'CAM-1',  label:'Camera 1',   type:'camera', color:'#00aaff', meta:'4K60p · Lens A'},
+  {id:2, name:'CAM-2',  label:'Camera 2',   type:'camera', color:'#00aaff', meta:'4K60p · Lens B'},
+  {id:3, name:'CAM-3',  label:'Camera 3',   type:'camera', color:'#00aaff', meta:'HD60p · Handheld'},
+  {id:4, name:'CAM-4',  label:'Camera 4',   type:'camera', color:'#0088ff', meta:'HD60p · Jib'},
+  {id:5, name:'PLY-1',  label:'Playout 1',  type:'playout',color:'#aa44ff', meta:'4K · Graphics'},
+  {id:6, name:'PLY-2',  label:'Playout 2',  type:'playout',color:'#aa44ff', meta:'HD · Clips'},
+  {id:7, name:'GFX',    label:'Graphics',   type:'gfx',    color:'#ff8800', meta:'4K · Live CG'},
+  {id:8, name:'REM-1',  label:'Remote 1',   type:'remote', color:'#00ffaa', meta:'REMI · JPEGXS'},
+  {id:9, name:'REM-2',  label:'Remote 2',   type:'remote', color:'#00ffaa', meta:'REMI · JPEGXS'},
+  {id:10,name:'EVS-1',  label:'EVS 1',      type:'evs',    color:'#ff4488', meta:'LSM · Replay'},
+  {id:11,name:'BLACK',  label:'Black',      type:'black',  color:'#333355', meta:'Ref Black'},
+  {id:12,name:'BARS',   label:'Test Bars',  type:'bars',   color:'#888800', meta:'SMPTE 100%'},
+];
+
+// ══════════════════════════════════════════════════════
+//   STATE
+// ══════════════════════════════════════════════════════
+const ST = {
+  pgm: 1,
+  pvw: 2,
+  ftb: false,
+  rec: true,
+  recStart: Date.now(),
+  autoRunning: false,
+  autoProgress: 0,
+  dur: '4f',
+  durMs: {
+    '4f': 133, '8f': 267, '1s': 1000, '2s': 2000, 'fX': 500
+  },
+  t: 0,
+  selectedMV: null,
+  faders: [0.9,0.8,0.7,0.75,0.6,0.85],
+  gpos: [true,true,false,false,false,false,false,false],
+};
+
+// ══════════════════════════════════════════════════════
+//   CLOCK & TIMECODE
+// ══════════════════════════════════════════════════════
+let tcFrame = 0, tcSec = 0, tcMin = 0, tcHour = 0;
+let tcStart = Date.now();
+
+function updateTC() {
+  const elapsed = Date.now() - tcStart;
+  const totalFrames = Math.floor(elapsed / 33.33);
+  const f = totalFrames % 30;
+  const s = Math.floor(totalFrames / 30) % 60;
+  const m = Math.floor(totalFrames / 1800) % 60;
+  const h = Math.floor(totalFrames / 108000);
+  document.getElementById('tc-display').textContent =
+    `${pad(h)}:${pad(m)}:${pad(s)}:${pad(f)}`;
+
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
+  // Record duration
+  if (ST.rec) {
+    const rd = Date.now() - ST.recStart;
+    const rs = Math.floor(rd/1000)%60, rm = Math.floor(rd/60000)%60, rh = Math.floor(rd/3600000);
+    const rt = `${pad(rh)}:${pad(rm)}:${pad(rs)}`;
+    document.getElementById('rec-dur').textContent = rt;
+    document.getElementById('bot-rec-t').textContent = rt;
+  }
+}
+function pad(n){return String(n).padStart(2,'0');}
+setInterval(updateTC, 33);
+
+// ══════════════════════════════════════════════════════
+//   BUILD TALLY GRID
+// ══════════════════════════════════════════════════════
+function buildTally() {
+  const grid = document.getElementById('tally-grid');
+  grid.innerHTML = '';
+  SOURCES.forEach(s => {
+    const div = document.createElement('div');
+    let cls = s.id === ST.pgm ? 'pgm' : s.id === ST.pvw ? 'pvw' : 'idle';
+    div.className = `tally-btn ${cls}`;
+    div.id = `tally-${s.id}`;
+    div.innerHTML = `<div class="tb-num">${s.id}</div><div class="tb-lbl">${s.name}</div>`;
+    div.onclick = () => selectTallySrc(s.id);
+    grid.appendChild(div);
+  });
+}
+
+function updateTally() {
+  SOURCES.forEach(s => {
+    const el = document.getElementById(`tally-${s.id}`);
+    if (!el) return;
+    el.className = `tally-btn ${s.id===ST.pgm?'pgm':s.id===ST.pvw?'pvw':'idle'}`;
+  });
+}
+
+function selectTallySrc(id) {
+  if (ST.pgm === id) return;
+  ST.pvw = id;
+  updateTally();
+  updateSwitcherBtns();
+  updateMVCells();
+}
+
+// ══════════════════════════════════════════════════════
+//   BUILD SWITCHER ROWS
+// ══════════════════════════════════════════════════════
+function buildSwitcher() {
+  const pvwRow = document.getElementById('sw-pvw-row');
+  const pgmRow = document.getElementById('sw-pgm-row');
+  // Clear existing buttons but keep label
+  while (pvwRow.children.length > 1) pvwRow.removeChild(pvwRow.lastChild);
+  while (pgmRow.children.length > 1) pgmRow.removeChild(pgmRow.lastChild);
+
+  SOURCES.forEach(s => {
+    const pvwBtn = document.createElement('div');
+    pvwBtn.className = `sw-btn ${s.id===ST.pvw?'pvw-active':'off'}`;
+    pvwBtn.id = `sw-pvw-${s.id}`;
+    pvwBtn.innerHTML = `<div class="sw-num">${s.id}</div><div class="sw-src">${s.name}</div>`;
+    pvwBtn.onclick = () => setPVW(s.id);
+    pvwRow.appendChild(pvwBtn);
+
+    const pgmBtn = document.createElement('div');
+    pgmBtn.className = `sw-btn ${s.id===ST.pgm?'pgm-active':'off'}`;
+    pgmBtn.id = `sw-pgm-${s.id}`;
+    pgmBtn.innerHTML = `<div class="sw-num">${s.id}</div><div class="sw-src">${s.name}</div>`;
+    pgmBtn.onclick = () => doCutTo(s.id);
+    pgmRow.appendChild(pgmBtn);
+  });
+}
+
+function setPVW(id) {
+  if (id === ST.pgm) return;
+  ST.pvw = id;
+  updateSwitcherBtns();
+  updateTally();
+  updateMVCells();
+}
+
+function updateSwitcherBtns() {
+  SOURCES.forEach(s => {
+    const pvw = document.getElementById(`sw-pvw-${s.id}`);
+    const pgm = document.getElementById(`sw-pgm-${s.id}`);
+    if (pvw) pvw.className = `sw-btn ${s.id===ST.pvw?'pvw-active':'off'}`;
+    if (pgm) pgm.className = `sw-btn ${s.id===ST.pgm?'pgm-active':'off'}`;
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//   SWITCHER ACTIONS
+// ══════════════════════════════════════════════════════
+function doCut() {
+  const old = ST.pgm;
+  ST.pgm = ST.pvw;
+  ST.pvw = old;
+  updateTally(); updateSwitcherBtns(); updateMVCells();
+  flashEl('sw-pgm-'+ST.pgm);
+}
+
+function doCutTo(id) {
+  if (id === ST.pgm) return;
+  ST.pvw = ST.pgm;
+  ST.pgm = id;
+  updateTally(); updateSwitcherBtns(); updateMVCells();
+}
+
+function doAuto() {
+  if (ST.autoRunning) return;
+  ST.autoRunning = true;
+  const dur = ST.durMs[ST.dur] || 267;
+  const start = Date.now();
+  const old = ST.pgm;
+  const target = ST.pvw;
+
+  function frame() {
+    const p = Math.min((Date.now()-start)/dur, 1);
+    ST.autoProgress = p;
+    if (p >= 1) {
+      ST.autoRunning = false;
+      ST.autoProgress = 0;
+      ST.pgm = target;
+      ST.pvw = old;
+      updateTally(); updateSwitcherBtns(); updateMVCells();
+    } else {
+      requestAnimationFrame(frame);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+let ftbState = false;
+function doFTB() {
+  ftbState = !ftbState;
+  document.getElementById('ftb-overlay').className = ftbState ? 'black' : '';
+  document.getElementById('ftb-btn').className = `fx-btn fx-ftb ${ftbState?'active':''}`;
+}
+
+function doEffect(name) {
+  flashMsg(name + ' applied');
+}
+
+function setDur(el, dur) {
+  document.querySelectorAll('.dur-btn').forEach(b=>b.classList.remove('sel'));
+  el.classList.add('sel');
+  ST.dur = dur;
+}
+
+function flashEl(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.opacity = '0.3';
+  setTimeout(() => el.style.opacity = '', 100);
+}
+
+// ══════════════════════════════════════════════════════
+//   MULTIVIEWER CELLS
+// ══════════════════════════════════════════════════════
+let mvLayout = {cols:4, rows:3};
+const mvCanvases = {};
+const mvAnimFrames = {};
+
+function setLayout(cols, rows) {
+  mvLayout = {cols, rows};
+  const area = document.getElementById('mv-area');
+  area.style.gridTemplateColumns = `repeat(${cols},1fr)`;
+  area.style.gridTemplateRows = `repeat(${rows},1fr)`;
+}
+
+function buildMV() {
+  const area = document.getElementById('mv-area');
+  area.innerHTML = '';
+  const count = SOURCES.length;
+
+  SOURCES.forEach((s, i) => {
+    const cell = document.createElement('div');
+    const isMV_pgm = s.id === ST.pgm;
+    const isMV_pvw = s.id === ST.pvw;
+    cell.className = `mv-cell ${isMV_pgm?'pgm':isMV_pvw?'pvw':''}`;
+    cell.id = `mv-cell-${s.id}`;
+    cell.onclick = () => selectMVCell(s.id);
+
+    cell.innerHTML = `
+      <div class="mv-tally ${isMV_pgm?'pgm':isMV_pvw?'pvw':'idle'}"></div>
+      <div class="mv-canvas-wrap">
+        <canvas class="mv-canvas" id="mv-cv-${s.id}"></canvas>
+        <div class="mv-label">
+          <span class="mv-name">${s.name}</span>
+          <span class="mv-meta">${s.meta}</span>
+        </div>
+      </div>
+      <div class="mv-umd">
+        <span class="umd-name" style="color:${isMV_pgm?'var(--pgm)':isMV_pvw?'var(--pvw)':s.color}">${s.label}</span>
+        <div class="umd-bars" id="umd-${s.id}"></div>
+      </div>
+    `;
+    area.appendChild(cell);
+
+    // UMD level bars
+    const umd = cell.querySelector('.umd-bars');
+    for(let b=0;b<5;b++){const bar=document.createElement('div');bar.className='umd-bar';bar.id=`umd-bar-${s.id}-${b}`;umd.appendChild(bar);}
+  });
+}
+
+function updateMVCells() {
+  SOURCES.forEach(s => {
+    const cell = document.getElementById(`mv-cell-${s.id}`);
+    const tally = cell?.querySelector('.mv-tally');
+    const umdName = cell?.querySelector('.umd-name');
+    if (!cell) return;
+    const isPgm = s.id === ST.pgm;
+    const isPvw = s.id === ST.pvw;
+    cell.className = `mv-cell ${isPgm?'pgm':isPvw?'pvw':''}`;
+    if (tally) tally.className = `mv-tally ${isPgm?'pgm':isPvw?'pvw':'idle'}`;
+    if (umdName) umdName.style.color = isPgm?'var(--pgm)':isPvw?'var(--pvw)':s.color;
+  });
+}
+
+function selectMVCell(id) {
+  ST.selectedMV = id;
+  setPVW(id);
+}
+
+// ══════════════════════════════════════════════════════
+//   VIDEO RENDERERS (Canvas per cell)
+// ══════════════════════════════════════════════════════
+function renderMVCell(s, t) {
+  const cv = document.getElementById(`mv-cv-${s.id}`);
+  if (!cv) return;
+  const wrap = cv.parentElement;
+  const w = wrap.clientWidth || 160;
+  const h = wrap.clientHeight || 80;
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const ctx = cv.getContext('2d');
+  if (w === 0 || h === 0) return;
+  ctx.clearRect(0, 0, w, h);
+
+  const isPgm = s.id === ST.pgm;
+  const isPvw = s.id === ST.pvw;
+
+  if (s.type === 'black') {
+    ctx.fillStyle = '#000'; ctx.fillRect(0,0,w,h);
+    ctx.font = `bold ${Math.max(8,h/5)}px 'Orbitron'`;
+    ctx.fillStyle = '#333'; ctx.textAlign = 'center';
+    ctx.fillText('BLACK', w/2, h/2+4);
+    return;
+  }
+  if (s.type === 'bars') {
+    drawSMPTEBars(ctx, w, h);
+    return;
+  }
+
+  // Simulated video feed
+  drawSimulatedFeed(ctx, s, w, h, t, isPgm);
+
+  // Overlay: auto transition blend
+  if (ST.autoRunning) {
+    if (isPgm || s.id === ST.pvw) {
+      const alpha = isPgm ? ST.autoProgress : 1 - ST.autoProgress;
+      ctx.fillStyle = `rgba(0,0,0,${alpha*0.6})`;
+      ctx.fillRect(0, 0, w, h);
+    }
+  }
+}
+
+function drawSimulatedFeed(ctx, s, w, h, t, isPgm) {
+  // Background gradient per source
+  const hue = (s.id * 37 + 200) % 360;
+  const grad = ctx.createLinearGradient(0,0,w,h);
+  grad.addColorStop(0, `hsl(${hue},60%,${isPgm?12:8}%)`);
+  grad.addColorStop(1, `hsl(${hue+40},40%,${isPgm?6:4}%)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,w,h);
+
+  // Camera-type: animated noise + safe area
+  if (s.type === 'camera' || s.type === 'remote') {
+    // Fake moving scene
+    const speed = s.id * 0.3 + 0.5;
+    for (let i = 0; i < 8; i++) {
+      const x = (Math.sin(t*speed*0.7+i*1.3)*0.5+0.5)*w;
+      const y = (Math.cos(t*speed*0.5+i*2.1)*0.5+0.5)*h;
+      const r = (Math.sin(t+i)*0.3+0.5)*w*0.12+4;
+      const grd = ctx.createRadialGradient(x,y,0,x,y,r);
+      grd.addColorStop(0, s.color+'33');
+      grd.addColorStop(1,'transparent');
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+    }
+    // Scan line effect
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    const scanY = ((t*30) % h);
+    ctx.fillRect(0, scanY, w, 2);
+
+    // Safe area guides
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(w*0.05, h*0.05, w*0.9, h*0.9); // Action safe
+    ctx.strokeRect(w*0.1, h*0.1, w*0.8, h*0.8);   // Title safe
+
+    // Crosshair
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath(); ctx.moveTo(w/2,h*0.45); ctx.lineTo(w/2,h*0.55); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(w*0.45,h/2); ctx.lineTo(w*0.55,h/2); ctx.stroke();
+  }
+  else if (s.type === 'gfx') {
+    // CG/graphics simulation
+    ctx.fillStyle = 'rgba(255,136,0,0.08)';
+    ctx.fillRect(0, h*0.7, w, h*0.25);
+    ctx.font = `bold ${h/7}px 'Orbitron'`;
+    ctx.fillStyle = 'rgba(255,180,0,0.5)';
+    ctx.textAlign = 'center';
+    ctx.fillText('LOWER THIRD', w/2, h*0.84);
+    // Animated line
+    const lx = ((t * 80) % (w+60)) - 30;
+    ctx.strokeStyle = 'rgba(255,136,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx+20, h); ctx.stroke();
+  }
+  else if (s.type === 'evs') {
+    // EVS replay
+    ctx.strokeStyle = 'rgba(255,68,136,0.3)';
+    ctx.lineWidth = 1;
+    for(let i=0;i<3;i++){
+      const x = w*(0.2+i*0.3);
+      ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();
+    }
+    ctx.font=`bold ${h/9}px 'Orbitron'`;ctx.fillStyle='rgba(255,68,136,0.5)';ctx.textAlign='center';
+    ctx.fillText('REPLAY', w/2, h*0.45);
+    const spd = Math.sin(t)*2+0.5;
+    ctx.font=`${h/10}px 'Share Tech Mono'`;ctx.fillStyle='rgba(255,68,136,0.3)';
+    ctx.fillText(`×${Math.abs(spd).toFixed(1)}`, w/2, h*0.65);
+  }
+  else if (s.type === 'playout') {
+    // Playout bars
+    for(let i=0;i<5;i++){
+      const bh=(Math.sin(t*1.2+i)*0.3+0.5)*h*0.6;
+      ctx.fillStyle=`hsla(${260+i*20},60%,50%,0.15)`;
+      ctx.fillRect(i*w/5,h-bh,w/5-1,bh);
+    }
+    ctx.font=`${h/9}px 'Orbitron'`;ctx.fillStyle='rgba(170,68,255,0.5)';ctx.textAlign='center';
+    ctx.fillText('PLAYOUT', w/2, h*0.4);
+  }
+
+  // Source ID watermark
+  ctx.font = `bold ${h*0.22}px 'Orbitron'`;
+  ctx.fillStyle = 'rgba(255,255,255,0.04)';
+  ctx.textAlign = 'center';
+  ctx.fillText(s.name, w/2, h*0.62);
+}
+
+function drawSMPTEBars(ctx, w, h) {
+  const bars75 = ['#c0c0c0','#c0c000','#00c0c0','#00c000','#c000c0','#c00000','#0000c0'];
+  bars75.forEach((c,i) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(i*w/7, 0, w/7, h*0.67);
+  });
+  const barsBot = ['#0000c0','#111111','#c000c0','#111111','#00c0c0','#111111','#111111'];
+  barsBot.forEach((c,i) => {
+    ctx.fillStyle = c;
+    ctx.fillRect(i*w/7, h*0.67, w/7, h*0.33);
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//   BUILD ROUTER
+// ══════════════════════════════════════════════════════
+const DSTS = ['PGM','PVW','MON-1','MON-2','REC','ENC','CLOUD'];
+const routeState = {'PGM':1,'PVW':2,'MON-1':3,'MON-2':7,'REC':1,'ENC':1,'CLOUD':8};
+
+function buildRouter() {
+  const area = document.getElementById('router-area');
+  area.innerHTML = '';
+  DSTS.forEach(dst => {
+    const row = document.createElement('div');
+    row.className = 'router-row';
+    const lbl = document.createElement('div');
+    lbl.className = 'router-dst';
+    lbl.textContent = dst;
+    row.appendChild(lbl);
+    // Show current + quick selects
+    const cur = routeState[dst];
+    const src = SOURCES.find(s=>s.id===cur);
+    const btn = document.createElement('div');
+    btn.className = 'router-src active';
+    btn.id = `route-${dst}`;
+    btn.textContent = src ? src.name : '---';
+    btn.onclick = () => openRouteMenu(dst, btn);
+    row.appendChild(btn);
+    area.appendChild(row);
+  });
+}
+
+function openRouteMenu(dst, btn) {
+  // Quick cycle through sources
+  const cur = routeState[dst];
+  const next = (cur % SOURCES.length) + 1;
+  routeState[dst] = next;
+  const src = SOURCES.find(s=>s.id===next);
+  btn.textContent = src ? src.name : '---';
+  if (dst === 'PGM') { ST.pgm = next; updateTally(); updateSwitcherBtns(); updateMVCells(); }
+  if (dst === 'PVW') { ST.pvw = next; updateTally(); updateSwitcherBtns(); updateMVCells(); }
+}
+
+// ══════════════════════════════════════════════════════
+//   AUDIO VU METERS
+// ══════════════════════════════════════════════════════
+const AUDIO_CHS = [
+  {name:'PGM MIX', chs:['L','R'], color:'#00ff88'},
+  {name:'MIC-1/2', chs:['L','R'], color:'#00aaff'},
+  {name:'PLAYBACK', chs:['L','R'], color:'#aa44ff'},
+  {name:'AUX SEND', chs:['L','R'], color:'#ffaa00'},
+];
+
+const vuLevels = {};
+const vuPeaks  = {};
+const vuDecay  = {};
+
+function buildVU() {
+  const area = document.getElementById('vu-area');
+  area.innerHTML = '';
+  AUDIO_CHS.forEach((ch, ci) => {
+    const card = document.createElement('div');
+    card.className = 'vu-ch';
+    const nm = document.createElement('div');
+    nm.className = 'vu-name';
+    nm.textContent = ch.name;
+    card.appendChild(nm);
+
+    const meter = document.createElement('div');
+    meter.className = 'vu-meter';
+
+    ch.chs.forEach((chn, i) => {
+      const key = `${ci}-${i}`;
+      vuLevels[key] = Math.random()*0.5+0.3;
+      vuPeaks[key]  = vuLevels[key];
+      vuDecay[key]  = 0;
+
+      const wrap = document.createElement('div');
+      wrap.className = 'vu-bar-wrap';
+      wrap.id = `vu-wrap-${key}`;
+
+      // Build 20 segments
+      for (let seg = 19; seg >= 0; seg--) {
+        const s = document.createElement('div');
+        s.className = 'vu-seg';
+        s.id = `vu-seg-${key}-${seg}`;
+        const db = -60 + seg*3; // -60 to 0 dB range
+        s.style.background = seg >= 18 ? '#ff2244' : seg >= 15 ? '#ffcc00' : '#00ff88';
+        s.style.opacity = '0.08';
+        wrap.appendChild(s);
+      }
+
+      const lbl = document.createElement('div');
+      lbl.className = 'vu-ch-label';
+      lbl.textContent = chn;
+
+      meter.appendChild(wrap);
+    });
+
+    card.appendChild(meter);
+
+    // Fader
+    const fader = document.createElement('input');
+    fader.type = 'range'; fader.min = 0; fader.max = 1; fader.step = 0.01;
+    fader.value = ST.faders[ci] || 0.8;
+    fader.className = 'vu-fader';
+    fader.oninput = () => { ST.faders[ci] = parseFloat(fader.value); };
+    card.appendChild(fader);
+
+    area.appendChild(card);
+  });
+}
+
+function updateVU(t) {
+  AUDIO_CHS.forEach((ch, ci) => {
+    ch.chs.forEach((chn, i) => {
+      const key = `${ci}-${i}`;
+      const fdr = ST.faders[ci] || 0.8;
+      // Animate level
+      const target = (Math.sin(t*(1.3+ci*0.4+i*0.2))*0.3+0.5) * fdr *
+                     (ci===0&&ST.pgm?1.0:0.7);
+      vuLevels[key] = vuLevels[key]*0.85 + target*0.15;
+      if (vuLevels[key] > vuPeaks[key]) {
+        vuPeaks[key] = vuLevels[key];
+        vuDecay[key] = 60;
+      }
+      if (vuDecay[key]-- <= 0) vuPeaks[key] *= 0.99;
+
+      const level = vuLevels[key];
+      const segs = 20;
+      const activeSegs = Math.round(level * segs);
+      for (let seg = 0; seg < segs; seg++) {
+        const el = document.getElementById(`vu-seg-${key}-${seg}`);
+        if (el) el.style.opacity = (segs-1-seg) < activeSegs ? '1' : '0.08';
+      }
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//   UMD LEVEL BARS
+// ══════════════════════════════════════════════════════
+function updateUMDBars(t) {
+  SOURCES.forEach(s => {
+    for (let b = 0; b < 5; b++) {
+      const el = document.getElementById(`umd-bar-${s.id}-${b}`);
+      if (!el) continue;
+      const isPgm = s.id === ST.pgm;
+      const level = isPgm ? Math.abs(Math.sin(t*(1+b*.3))) : Math.random()*0.3;
+      const activeH = Math.round(level * 8) + 1;
+      el.style.height = activeH + 'px';
+      el.style.background = isPgm ? (b>3?'#ff2244':b>2?'#ffcc00':'#00ff88') : '#1a3558';
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//   WAVEFORM MONITOR
+// ══════════════════════════════════════════════════════
+const wfHistory = [];
+function updateWaveform(t) {
+  const cv = document.getElementById('wf-canvas');
+  if (!cv) return;
+  const w = cv.offsetWidth || 180, h = 50;
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#010508';
+  ctx.fillRect(0,0,w,h);
+
+  // Grid lines (IRE)
+  [0,25,50,75,100].forEach(ire => {
+    const y = h - (ire/100)*h;
+    ctx.strokeStyle = ire===0||ire===100 ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+    ctx.font = '6px "Share Tech Mono"';
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillText(ire+'%', 2, y-1);
+  });
+
+  // Waveform
+  const src = SOURCES.find(s => s.id === ST.pgm);
+  const pts = [];
+  for (let x = 0; x < w; x++) {
+    const luma = 0.4 + 0.35*Math.sin(x*0.08 + t*1.2) +
+                 0.1*Math.sin(x*0.2 + t*0.8) +
+                 0.05*Math.random();
+    pts.push({x, y: h - luma*h});
+  }
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  pts.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.strokeStyle = 'rgba(0,255,136,0.7)';
+  ctx.lineWidth = 1;
+  ctx.shadowColor = '#00ff88';
+  ctx.shadowBlur = 4;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Max level indicator
+  const maxY = Math.min(...pts.map(p=>p.y));
+  const mV = Math.round((1-(maxY/h))*700);
+  document.getElementById('wf-val').textContent = mV + 'mV';
+}
+
+// ══════════════════════════════════════════════════════
+//   VECTORSCOPE
+// ══════════════════════════════════════════════════════
+const vsParticles = [];
+for(let i=0;i<120;i++) {
+  vsParticles.push({
+    angle: Math.random()*Math.PI*2,
+    r: Math.random()*0.4+0.05,
+    drift: (Math.random()-.5)*0.002,
+    life: Math.random()
+  });
+}
+
+function updateVectorscope(t) {
+  const cv = document.getElementById('vs-canvas');
+  if (!cv) return;
+  const W = cv.offsetWidth||180, H = 70;
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+  const cx = W/2, cy = H/2, R = Math.min(W,H)/2-4;
+
+  ctx.fillStyle = '#010508';
+  ctx.fillRect(0,0,W,H);
+
+  // Outer circle
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth=1; ctx.stroke();
+  // 75% circle
+  ctx.beginPath(); ctx.arc(cx,cy,R*0.75,0,Math.PI*2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.stroke();
+  // Crosshairs
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+  ctx.beginPath();ctx.moveTo(cx-R,cy);ctx.lineTo(cx+R,cy);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx,cy-R);ctx.lineTo(cx,cy+R);ctx.stroke();
+  // Color targets
+  const targets=[{a:103,l:'R'},{a:167,l:'G'},{a:285,l:'B'},{a:13,l:'Mg'},{a:77,l:'Cy'},{a:196,l:'Yl'}];
+  targets.forEach(tg=>{
+    const rad=tg.a*Math.PI/180;
+    const tx=cx+R*0.75*Math.cos(rad), ty=cy+R*0.75*Math.sin(rad);
+    ctx.beginPath();ctx.arc(tx,ty,3,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,255,255,0.2)';ctx.lineWidth=.5;ctx.stroke();
+    ctx.font='5px "Share Tech Mono"';ctx.fillStyle='rgba(255,255,255,0.25)';
+    ctx.fillText(tg.l,tx+3,ty+2);
+  });
+
+  // Particles (chroma)
+  vsParticles.forEach(p => {
+    p.angle += p.drift + Math.sin(t*0.3)*0.001;
+    p.life += 0.005;
+    if (p.life > 1) p.life = 0;
+    const x = cx + p.r*R*Math.cos(p.angle);
+    const y = cy + p.r*R*Math.sin(p.angle);
+    const alpha = 0.3 + 0.5*Math.sin(p.life*Math.PI);
+    ctx.beginPath(); ctx.arc(x,y,1.2,0,Math.PI*2);
+    const hue = (p.angle*180/Math.PI + 60) % 360;
+    ctx.fillStyle = `hsla(${hue},100%,70%,${alpha})`;
+    ctx.fill();
+  });
+
+  const sat = Math.round(Math.min(...vsParticles.map(p=>p.r))*200 + 60);
+  document.getElementById('vs-sat').textContent = `SAT: ${Math.min(sat,99)}%`;
+}
+
+// ══════════════════════════════════════════════════════
+//   RECORD TOGGLE
+// ══════════════════════════════════════════════════════
+function toggleRec() {
+  ST.rec = !ST.rec;
+  if (ST.rec) ST.recStart = Date.now();
+  const btn = document.getElementById('rec-main-btn');
+  btn.className = `rec-btn ${ST.rec?'rec-on':'rec-off'}`;
+  btn.innerHTML = `<div class="rec-dot" style="background:${ST.rec?'var(--err)':'var(--dim3)'}"></div>${ST.rec?'REC':'SBY'} · MAIN<span class="rec-time" id="rec-dur">00:00:00</span>`;
+  document.getElementById('rec-dot').className = `h-dot ${ST.rec?'rec':'warn'}`;
+  document.getElementById('rec-label').textContent = ST.rec?'REC':'SBY';
+}
+
+// ══════════════════════════════════════════════════════
+//   GPO TOGGLE
+// ══════════════════════════════════════════════════════
+function toggleGPO(el) {
+  const isOn = el.classList.contains('on');
+  el.className = `gpo-btn ${isOn?'off':'on'}`;
+}
+
+// ══════════════════════════════════════════════════════
+//   FLASH MESSAGE
+// ══════════════════════════════════════════════════════
+function flashMsg(msg) {
+  const el = document.getElementById('tip');
+  el.textContent = msg;
+  el.style.display = 'block';
+  el.style.top = '50%'; el.style.left = '50%';
+  el.style.transform = 'translate(-50%,-50%)';
+  el.style.opacity = '1';
+  setTimeout(()=>{el.style.opacity='0';setTimeout(()=>el.style.display='none',300);},1200);
+}
+
+// ══════════════════════════════════════════════════════
+//   MAIN LOOP
+// ══════════════════════════════════════════════════════
+function mainLoop(ts) {
+  ST.t = (ts||0) * 0.001;
+  const t = ST.t;
+
+  // Render all MV cells
+  SOURCES.forEach(s => renderMVCell(s, t));
+
+  updateVU(t);
+  updateUMDBars(t);
+  updateWaveform(t);
+  updateVectorscope(t);
+
+  requestAnimationFrame(mainLoop);
+}
+
+// ══════════════════════════════════════════════════════
+//   KEYBOARD SHORTCUTS
+// ══════════════════════════════════════════════════════
+document.addEventListener('keydown', e => {
+  const k = e.key;
+  if (k === 'Enter' || k === ' ') { e.preventDefault(); doCut(); return; }
+  if (k === 'a' || k === 'A') { doAuto(); return; }
+  if (k === 'f' || k === 'F') { doFTB(); return; }
+  if (k >= '1' && k <= '9') {
+    const id = parseInt(k);
+    if (id <= SOURCES.length) setPVW(id);
+  }
+  if (k === '0') doCut();
+});
+
+// ══════════════════════════════════════════════════════
+//   INIT
+// ══════════════════════════════════════════════════════
+buildTally();
+buildSwitcher();
+buildMV();
+buildRouter();
+buildVU();
+setLayout(4, 3);
+requestAnimationFrame(mainLoop);
+</script>
+</body>
+</html>

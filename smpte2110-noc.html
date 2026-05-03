@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ST 2110 — Production NOC</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Barlow+Condensed:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#03070e;--bg1:#060d1a;--bg2:#080f1f;
+  --ok:#00e676;--warn:#ffab00;--err:#ff1744;
+  --info:#00b0ff;--purple:#d500f9;--teal:#00bcd4;
+  --dim:#1e3a5f;--dim2:#2a4f75;
+  --text:#b8d4ec;--text2:#7a9fc0;
+  --mono:'IBM Plex Mono',monospace;
+  --head:'Barlow Condensed',sans-serif;
+  --border:rgba(0,176,255,0.12);
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);}
+body{font-family:var(--mono);color:var(--text);display:flex;flex-direction:column;}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9998;
+  background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.04) 3px,rgba(0,0,0,0.04) 4px);}
+#topbar{height:44px;background:var(--bg1);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 14px;gap:14px;flex-shrink:0;}
+.tb-logo{font-family:var(--head);font-size:19px;font-weight:900;letter-spacing:3px;
+  background:linear-gradient(90deg,#00b0ff,#00e676);-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;background-clip:text;white-space:nowrap;}
+.tb-sep{width:1px;height:24px;background:var(--border);}
+.tb-tag{font-size:9px;letter-spacing:2px;color:var(--text2);font-family:var(--head);font-weight:600;}
+.tb-time{margin-left:auto;font-size:12px;color:var(--info);letter-spacing:1px;}
+#alarmbar{height:24px;background:transparent;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 12px;gap:12px;flex-shrink:0;transition:background 0.3s;}
+#alarmbar.aa{background:rgba(255,23,68,0.07);}
+.ai{display:flex;align-items:center;gap:6px;font-size:8px;letter-spacing:1px;white-space:nowrap;opacity:0.65;}
+.ai.active{opacity:1;}
+.ad{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+.a-ok{background:var(--ok);}.a-warn{background:var(--warn);}.a-err{background:var(--err);box-shadow:0 0 5px var(--err);animation:bk .6s infinite;}
+@keyframes bk{0%,100%{opacity:1}50%{opacity:0.2}}
+#main{flex:1;display:grid;grid-template-columns:210px 1fr 250px;overflow:hidden;}
+#left{background:var(--bg1);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden;}
+#left::-webkit-scrollbar{width:3px;}#left::-webkit-scrollbar-thumb{background:var(--dim);}
+.sh{padding:8px 11px 5px;font-size:8px;letter-spacing:2px;color:var(--dim2);font-family:var(--head);font-weight:700;
+  text-transform:uppercase;border-bottom:1px solid rgba(255,255,255,0.03);display:flex;align-items:center;justify-content:space-between;}
+.sb{font-size:7px;padding:1px 5px;border-radius:3px;letter-spacing:1px;}
+.b-ok{background:rgba(0,230,118,0.15);color:var(--ok);}.b-warn{background:rgba(255,171,0,0.15);color:var(--warn);}.b-err{background:rgba(255,23,68,0.15);color:var(--err);}
+.di{display:flex;align-items:center;gap:6px;padding:5px 11px;border-bottom:1px solid rgba(255,255,255,0.02);cursor:default;}
+.di:hover{background:rgba(0,176,255,0.04);}
+.dd{width:6px;height:6px;border-radius:50%;flex-shrink:0;background:var(--ok);}
+.dn{font-size:9px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ds{font-size:7px;color:var(--text2);margin-top:1px;}
+.dt{font-size:7px;padding:1px 4px;border-radius:2px;flex-shrink:0;}
+.fs{padding:7px 9px;display:flex;flex-direction:column;gap:4px;}
+.fb{width:100%;padding:6px 8px;border-radius:5px;border:1px solid;background:transparent;
+  font-family:var(--mono);font-size:8px;cursor:pointer;display:flex;align-items:center;gap:6px;
+  transition:all 0.15s;text-align:left;letter-spacing:0.5px;}
+.fb:hover{transform:translateX(2px);}
+.fb.active{font-weight:700;}
+.fl{display:block;font-size:9px;font-weight:600;}
+.fd{display:block;font-size:7px;color:var(--text2);margin-top:1px;}
+.fi{font-size:12px;width:14px;text-align:center;flex-shrink:0;}
+.f-ptp{border-color:rgba(255,171,0,0.3);color:var(--warn);}.f-ptp:hover,.f-ptp.active{background:rgba(255,171,0,0.1);border-color:var(--warn);}
+.f-ptpbk{border-color:rgba(213,0,249,0.3);color:var(--purple);}.f-ptpbk:hover,.f-ptpbk.active{background:rgba(213,0,249,0.1);border-color:var(--purple);}
+.f-path{border-color:rgba(255,23,68,0.3);color:#ff6090;}.f-path:hover,.f-path.active{background:rgba(255,23,68,0.1);border-color:var(--err);}
+.f-both{border-color:rgba(255,23,68,0.5);color:var(--err);}.f-both:hover,.f-both.active{background:rgba(255,23,68,0.15);border-color:var(--err);}
+.f-rst{border-color:rgba(0,230,118,0.3);color:var(--ok);}.f-rst:hover{background:rgba(0,230,118,0.1);}
+#center{position:relative;overflow:hidden;background:var(--bg2);}
+#noc-canvas{display:block;width:100%;height:100%;}
+.hud{position:absolute;pointer-events:none;font-family:var(--mono);}
+#htl{top:9px;left:9px;}#htr{top:9px;right:9px;text-align:right;}
+#hbl{bottom:9px;left:9px;}#hbr{bottom:9px;right:9px;text-align:right;}
+.hb{background:rgba(3,7,14,0.88);border:1px solid rgba(0,176,255,0.14);border-radius:5px;padding:6px 10px;backdrop-filter:blur(4px);margin-bottom:4px;}
+.ht{font-size:7px;letter-spacing:2px;color:var(--dim2);margin-bottom:2px;font-family:var(--head);font-weight:700;text-transform:uppercase;}
+.hv{font-size:11px;letter-spacing:0.5px;}
+.hv.ok{color:var(--ok);}.hv.warn{color:var(--warn);}.hv.err{color:var(--err);animation:bk .7s infinite;}.hv.info{color:var(--info);}
+.hs{font-size:7px;color:var(--text2);margin-top:1px;}
+#fm{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(3,7,14,0.97);
+  border:1px solid;border-radius:9px;padding:22px 26px;max-width:460px;width:90%;
+  pointer-events:none;opacity:0;transition:opacity 0.3s;z-index:50;backdrop-filter:blur(12px);}
+#fm.show{opacity:1;}
+#fm.mw{border-color:var(--warn);box-shadow:0 0 50px rgba(255,171,0,0.12);}
+#fm.me{border-color:var(--err);box-shadow:0 0 50px rgba(255,23,68,0.15);}
+#fm.mp{border-color:var(--purple);box-shadow:0 0 50px rgba(213,0,249,0.12);}
+#fm-i{font-size:28px;margin-bottom:8px;}
+#fm-t{font-family:var(--head);font-size:17px;font-weight:900;letter-spacing:2px;margin-bottom:7px;}
+#fm-b{font-size:10px;line-height:1.8;color:var(--text2);}
+#fm-b strong{color:var(--text);}
+#fm-k{margin-top:10px;padding:8px 11px;background:rgba(255,255,255,0.03);border-radius:4px;font-size:8px;line-height:1.8;color:var(--text2);border-left:2px solid;}
+#fm-c{margin-top:8px;font-size:8px;color:var(--dim2);text-align:center;letter-spacing:1px;}
+#right{background:var(--bg1);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+.rt{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;}
+.rtb{flex:1;padding:7px 3px;text-align:center;font-size:8px;letter-spacing:1px;font-family:var(--head);font-weight:700;
+  text-transform:uppercase;cursor:pointer;color:var(--dim2);border-bottom:2px solid transparent;transition:all 0.15s;}
+.rtb:hover{color:var(--text2);}.rtb.active{color:var(--info);border-bottom-color:var(--info);}
+.rp{flex:1;overflow-y:auto;display:none;flex-direction:column;}
+.rp.active{display:flex;}
+.rp::-webkit-scrollbar{width:3px;}.rp::-webkit-scrollbar-thumb{background:var(--dim);}
+.ll{display:grid;grid-template-columns:62px 32px 1fr;gap:4px;align-items:start;padding:2px 9px;border-bottom:1px solid rgba(255,255,255,0.02);font-size:8px;line-height:1.5;}
+.lt{color:var(--dim2);font-size:7px;}
+.lv{font-size:6px;font-weight:700;padding:1px 3px;border-radius:2px;text-align:center;height:fit-content;}
+.v-ok{background:rgba(0,230,118,0.15);color:var(--ok);}.v-warn{background:rgba(255,171,0,0.15);color:var(--warn);}
+.v-err{background:rgba(255,23,68,0.15);color:var(--err);}.v-info{background:rgba(0,176,255,0.15);color:var(--info);}
+.v-crit{background:rgba(255,23,68,0.4);color:#fff;animation:bk .7s infinite;}
+.lm{color:var(--text2);}.lm strong{color:var(--text);}
+.mr{padding:6px 11px;border-bottom:1px solid rgba(255,255,255,0.03);}
+.mr:hover{background:rgba(0,176,255,0.03);}
+.mn{font-size:7px;letter-spacing:1px;color:var(--dim2);text-transform:uppercase;}
+.mv{font-size:11px;font-weight:600;letter-spacing:0.5px;}
+.mv.ok{color:var(--ok);}.mv.warn{color:var(--warn);}.mv.err{color:var(--err);}
+.mbar{height:2px;background:var(--dim);border-radius:1px;margin-top:2px;overflow:hidden;}
+.mf{height:100%;border-radius:1px;transition:width 0.4s,background 0.4s;}
+.mf.ok{background:var(--ok);}.mf.warn{background:var(--warn);}.mf.err{background:var(--err);}
+.sc{background:rgba(11,20,40,0.9);border:1px solid var(--border);border-radius:4px;padding:8px 10px;margin:4px 6px 0;}
+.sh2{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
+.si{font-size:13px;}.sn{font-size:9px;font-weight:700;font-family:var(--head);letter-spacing:1px;}.st{font-size:7px;color:var(--text2);margin-left:auto;}
+.ss{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-top:5px;}
+.sq{font-size:7px;color:var(--text2);}.sq span{color:var(--text);font-weight:600;}
+#sb{height:19px;background:var(--bg1);border-top:1px solid var(--border);display:flex;align-items:center;
+  padding:0 11px;gap:16px;font-size:7px;letter-spacing:1px;color:var(--text2);flex-shrink:0;}
+.sbi{display:flex;align-items:center;gap:4px;}.sbd{width:5px;height:5px;border-radius:50%;}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <div class="tb-logo">ST·2110 NOC</div>
+  <div class="tb-sep"></div>
+  <div class="tb-tag">Production Network Operations Center</div>
+  <div class="tb-sep"></div>
+  <span style="font-size:8px;color:var(--text2);letter-spacing:1px">FACILITY: BROADCAST-HQ-01 | SITE: PRIMARY-MCR</span>
+  <div class="tb-time" id="clock">--:--:--:--</div>
+</div>
+<div id="alarmbar">
+  <div class="ai" id="al-ptp"><div class="ad a-ok"></div><span>PTP: LOCKED</span></div>
+  <div class="ai" id="al-pa"><div class="ad a-ok"></div><span>PATH-A: OK</span></div>
+  <div class="ai" id="al-pb"><div class="ad a-ok"></div><span>PATH-B: OK</span></div>
+  <div class="ai" id="al-22"><div class="ad a-ok"></div><span>2022-7: DUAL</span></div>
+  <div class="ai" id="al-st"><div class="ad a-ok"></div><span>STREAMS: 18/18</span></div>
+  <div class="ai" id="al-nm"><div class="ad a-ok"></div><span>NMOS: 24 NODES</span></div>
+  <div style="margin-left:auto;font-size:7px;letter-spacing:1px" id="al-mode">MODE: NORMAL OPERATION</div>
+</div>
+<div id="main">
+  <div id="left">
+    <div class="sh">⚡ Fault Injection <span class="sb b-ok" id="fi-badge">NOMINAL</span></div>
+    <div class="fs">
+      <button class="fb f-ptp" id="btn-ptp" onclick="inject('ptp')"><span class="fi">⏰</span><span><span class="fl">PTP Primary Loss</span><span class="fd">Kill Grandmaster GM-01</span></span></button>
+      <button class="fb f-ptpbk" id="btn-ptpbk" onclick="inject('ptpbk')"><span class="fi">🔮</span><span><span class="fl">PTP Backup Loss</span><span class="fd">Kill GM-02 → free-run clocks</span></span></button>
+      <button class="fb f-path" id="btn-pathA" onclick="inject('pathA')"><span class="fi">🔴</span><span><span class="fl">Kill Path A</span><span class="fd">SPINE-A 100GbE failure</span></span></button>
+      <button class="fb f-path" id="btn-pathB" onclick="inject('pathB')"><span class="fi">🔴</span><span><span class="fl">Kill Path B</span><span class="fd">SPINE-B 100GbE failure</span></span></button>
+      <button class="fb f-both" id="btn-both" onclick="inject('both')"><span class="fi">💀</span><span><span class="fl">BOTH PATHS DOWN</span><span class="fd">Complete fabric failure</span></span></button>
+      <button class="fb f-rst" onclick="resetAll()"><span class="fi">↺</span><span><span class="fl">Reset All Systems</span><span class="fd">Restore nominal operation</span></span></button>
+    </div>
+    <div class="sh">🖧 Device Inventory <span class="sb b-ok" id="dev-badge">24 ONLINE</span></div>
+    <div class="sh" style="font-size:7px;padding:4px 11px">PTP HIERARCHY</div>
+    <div class="di"><div class="dd" id="d-gm1"></div><div style="flex:1"><div class="dn">GM-01 Grandmaster</div><div class="ds">GPS-disciplined · Primary · Stratum 1</div></div><div class="dt" style="background:rgba(0,230,118,0.15);color:var(--ok)">PRI</div></div>
+    <div class="di"><div class="dd" id="d-gm2"></div><div style="flex:1"><div class="dn">GM-02 Grandmaster</div><div class="ds">GPS-disciplined · Backup · Standby</div></div><div class="dt" style="background:rgba(0,176,255,0.15);color:var(--info)">BKP</div></div>
+    <div class="sh" style="font-size:7px;padding:4px 11px">NETWORK FABRIC</div>
+    <div class="di"><div class="dd" id="d-spA"></div><div style="flex:1"><div class="dn">SPINE-A 100GbE</div><div class="ds">Core switch · Path A · 48 ports</div></div></div>
+    <div class="di"><div class="dd" id="d-spB"></div><div style="flex:1"><div class="dn">SPINE-B 100GbE</div><div class="ds">Core switch · Path B · 48 ports</div></div></div>
+    <div class="di"><div class="dd"></div><div style="flex:1"><div class="dn">LEAF-01 25GbE</div><div class="ds">Access · Row A · PTP Boundary Clock</div></div></div>
+    <div class="di"><div class="dd"></div><div style="flex:1"><div class="dn">LEAF-02 25GbE</div><div class="ds">Access · Row B · PTP Boundary Clock</div></div></div>
+    <div class="di"><div class="dd"></div><div style="flex:1"><div class="dn">LEAF-03 25GbE</div><div class="ds">Access · Row C · PTP Boundary Clock</div></div></div>
+    <div class="sh" style="font-size:7px;padding:4px 11px">SOURCES (5)</div>
+    <div class="di"><div class="dd" id="d-c1"></div><div style="flex:1"><div class="dn">CAM-01 4K60p</div><div class="ds">ST2110-20 NL · 23.8 Gbps</div></div></div>
+    <div class="di"><div class="dd" id="d-c2"></div><div style="flex:1"><div class="dn">CAM-02 4K60p</div><div class="ds">ST2110-20 NL · 23.8 Gbps</div></div></div>
+    <div class="di"><div class="dd" id="d-c3"></div><div style="flex:1"><div class="dn">CAM-03 HD60p</div><div class="ds">ST2110-20 N · 2.97 Gbps</div></div></div>
+    <div class="di"><div class="dd" id="d-pl"></div><div style="flex:1"><div class="dn">PLAYOUT-SVR-01</div><div class="ds">ST2110-20/30 · UHD</div></div></div>
+    <div class="di"><div class="dd" id="d-au"></div><div style="flex:1"><div class="dn">AUDIO-DESK-01</div><div class="ds">ST2110-30 · 64ch AES67</div></div></div>
+    <div class="sh" style="font-size:7px;padding:4px 11px">DESTINATIONS (5)</div>
+    <div class="di"><div class="dd" id="d-sw"></div><div style="flex:1"><div class="dn">PROD-SWITCHER-01</div><div class="ds">ST2110-20/30/40 receiver</div></div></div>
+    <div class="di"><div class="dd" id="d-rc"></div><div style="flex:1"><div class="dn">RECORDER-01 NVMe</div><div class="ds">4K capture · ST2110</div></div></div>
+    <div class="di"><div class="dd" id="d-en"></div><div style="flex:1"><div class="dn">TX-ENCODER-01</div><div class="ds">4K HEVC · broadcast TX</div></div></div>
+    <div class="di"><div class="dd" id="d-cl"></div><div style="flex:1"><div class="dn">CLOUD-GATEWAY</div><div class="ds">REMI · ST2110-22 JPEGXS</div></div></div>
+    <div class="di"><div class="dd" id="d-mv"></div><div style="flex:1"><div class="dn">MULTIVIEWER-01</div><div class="ds">32-split · 4K monitor wall</div></div></div>
+  </div>
+  <div id="center">
+    <canvas id="noc-canvas"></canvas>
+    <div class="hud" id="htl">
+      <div class="hb"><div class="ht">PTP Status</div><div class="hv ok" id="h-ptp">GM-01 LOCKED</div><div class="hs" id="h-ptps">Offset: +12ns · Jitter: 3ns</div></div>
+      <div class="hb"><div class="ht">Active Streams</div><div class="hv info" id="h-str">18 / 18</div><div class="hs">Video:6 · Audio:8 · ANC:4</div></div>
+    </div>
+    <div class="hud" id="htr">
+      <div class="hb"><div class="ht">ST 2022-7</div><div class="hv ok" id="h-22">DUAL PATH ●●</div><div class="hs" id="h-22s">A: 0 loss · B: 0 loss</div></div>
+      <div class="hb"><div class="ht">Fabric Bandwidth</div><div class="hv info" id="h-bw">147.3 Gbps</div><div class="hs">of 400 Gbps fabric</div></div>
+    </div>
+    <div class="hud" id="hbl"><div class="hb"><div class="ht">NMOS Registry</div><div class="hv ok" id="h-nmos">IS-04: 24 nodes</div><div class="hs">IS-05: 18 connections active</div></div></div>
+    <div class="hud" id="hbr"><div class="hb"><div class="ht">Packet Loss</div><div class="hv ok" id="h-loss">0.000 %</div><div class="hs" id="h-losss">Frames dropped: 0</div></div></div>
+    <div id="fm">
+      <div id="fm-i">⚡</div><div id="fm-t"></div><div id="fm-b"></div><div id="fm-k"></div><div id="fm-c"></div>
+    </div>
+  </div>
+  <div id="right">
+    <div class="rt">
+      <div class="rtb active" id="rt-log" onclick="rTab('log')">Event Log</div>
+      <div class="rtb" id="rt-metrics" onclick="rTab('metrics')">Metrics</div>
+      <div class="rtb" id="rt-streams" onclick="rTab('streams')">Streams</div>
+    </div>
+    <div class="rp active" id="rp-log" style="gap:0"></div>
+    <div class="rp" id="rp-metrics">
+      <div class="mr"><div class="mn">PTP Clock Offset</div><div class="mv ok" id="m-po">+12 ns</div><div class="mbar"><div class="mf ok" id="mf-po" style="width:2%"></div></div></div>
+      <div class="mr"><div class="mn">PTP Jitter</div><div class="mv ok" id="m-pj">3 ns</div><div class="mbar"><div class="mf ok" id="mf-pj" style="width:1%"></div></div></div>
+      <div class="mr"><div class="mn">Path A Packet Loss</div><div class="mv ok" id="m-plA">0.000 %</div><div class="mbar"><div class="mf ok" id="mf-plA" style="width:0%"></div></div></div>
+      <div class="mr"><div class="mn">Path B Packet Loss</div><div class="mv ok" id="m-plB">0.000 %</div><div class="mbar"><div class="mf ok" id="mf-plB" style="width:0%"></div></div></div>
+      <div class="mr"><div class="mn">Lip-Sync Error</div><div class="mv ok" id="m-lip">0.04 ms</div><div class="mbar"><div class="mf ok" id="mf-lip" style="width:1%"></div></div></div>
+      <div class="mr"><div class="mn">Audio Buffer Level</div><div class="mv ok" id="m-abuf">72 ms</div><div class="mbar"><div class="mf ok" id="mf-abuf" style="width:72%"></div></div></div>
+      <div class="mr"><div class="mn">ST2022-7 Reorders</div><div class="mv ok" id="m-ro">0</div><div class="mbar"><div class="mf ok" id="mf-ro" style="width:0%"></div></div></div>
+      <div class="mr"><div class="mn">Fabric Utilization</div><div class="mv info" id="m-fab">36.8 %</div><div class="mbar"><div class="mf ok" id="mf-fab" style="width:37%"></div></div></div>
+      <div class="mr"><div class="mn">NMOS IS-04 Heartbeat</div><div class="mv ok" id="m-nmos">24/24 OK</div><div class="mbar"><div class="mf ok" id="mf-nmos" style="width:100%"></div></div></div>
+      <div class="mr"><div class="mn">Video Streams</div><div class="mv ok" id="m-vs">6 / 6</div><div class="mbar"><div class="mf ok" id="mf-vs" style="width:100%"></div></div></div>
+      <div class="mr"><div class="mn">Audio Streams</div><div class="mv ok" id="m-as">8 / 8</div><div class="mbar"><div class="mf ok" id="mf-as" style="width:100%"></div></div></div>
+      <div class="mr"><div class="mn">ANC Data Streams</div><div class="mv ok" id="m-ancs">4 / 4</div><div class="mbar"><div class="mf ok" id="mf-ancs" style="width:100%"></div></div></div>
+    </div>
+    <div class="rp" id="rp-streams" style="padding:5px;">
+      <div class="sc"><div class="sh2"><span class="si">🎬</span><span class="sn" style="color:#00b0ff">CAM-01 VIDEO</span><span class="st">ST2110-20 · 4K60p</span></div><canvas id="wv-c1" height="26" style="width:100%;display:block;border-radius:3px;background:rgba(0,0,0,0.3)"></canvas><div class="ss"><div class="sq">Bitrate: <span>23.8 Gbps</span></div><div class="sq">Loss: <span id="ws-c1l">0.000%</span></div><div class="sq">Format: <span>4K 60p 10-bit</span></div><div class="sq">PTP δ: <span id="ws-c1p">+8ns</span></div></div></div>
+      <div class="sc"><div class="sh2"><span class="si">🎬</span><span class="sn" style="color:#00b0ff">CAM-02 VIDEO</span><span class="st">ST2110-20 · 4K60p</span></div><canvas id="wv-c2" height="26" style="width:100%;display:block;border-radius:3px;background:rgba(0,0,0,0.3)"></canvas><div class="ss"><div class="sq">Bitrate: <span>23.8 Gbps</span></div><div class="sq">Loss: <span id="ws-c2l">0.000%</span></div><div class="sq">Format: <span>4K 60p 10-bit</span></div><div class="sq">PTP δ: <span id="ws-c2p">+11ns</span></div></div></div>
+      <div class="sc"><div class="sh2"><span class="si">🎵</span><span class="sn" style="color:#00e676">AUDIO-01 PCM</span><span class="st">ST2110-30 · 64ch</span></div><canvas id="wv-au" height="26" style="width:100%;display:block;border-radius:3px;background:rgba(0,0,0,0.3)"></canvas><div class="ss"><div class="sq">Rate: <span>48kHz/24-bit</span></div><div class="sq">Sync: <span id="ws-aus">LOCKED</span></div><div class="sq">Channels: <span>64</span></div><div class="sq">Δ Frame: <span id="ws-aud">0.04ms</span></div></div></div>
+      <div class="sc"><div class="sh2"><span class="si">📋</span><span class="sn" style="color:#ff4fa0">ANC DATA</span><span class="st">ST2110-40 · ST291</span></div><canvas id="wv-an" height="26" style="width:100%;display:block;border-radius:3px;background:rgba(0,0,0,0.3)"></canvas><div class="ss"><div class="sq">Content: <span>TC+CC+Tally</span></div><div class="sq">Status: <span id="ws-ans">NOMINAL</span></div></div></div>
+    </div>
+  </div>
+</div>
+<div id="sb">
+  <div class="sbi"><div class="sbd" style="background:var(--ok)"></div><span>FACILITY: ONLINE</span></div>
+  <div class="sbi"><div class="sbd" id="sb-pd" style="background:var(--ok)"></div><span id="sb-p">PTP: LOCKED GM-01</span></div>
+  <div class="sbi"><div class="sbd" id="sb-nd" style="background:var(--ok)"></div><span id="sb-n">NETWORK: DUAL-PATH ACTIVE</span></div>
+  <div class="sbi"><div class="sbd" id="sb-sd" style="background:var(--ok)"></div><span id="sb-s">STREAMS: 18/18 OK</span></div>
+  <div style="margin-left:auto;font-size:7px;color:var(--dim2)">SMPTE ST 2110 · AMWA NMOS IS-04/05/07/08 · IEEE 1588 PTP · ST 2022-7</div>
+</div>
+<script>
+const S={pA:false,pB:false,qA:false,qB:false,t:0,drift:0,lc:0,mt:null};
+const C=document.getElementById('noc-canvas');
+const cx=C.getContext('2d');
+const ctr=document.getElementById('center');
+const WH={c1:[],c2:[],au:[],an:[]};
+function resize(){C.width=ctr.clientWidth;C.height=ctr.clientHeight;}
+resize();window.addEventListener('resize',resize);
+setInterval(()=>{const n=new Date();document.getElementById('clock').textContent=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}:${String(Math.floor(n.getMilliseconds()/33.33)).padStart(2,'0')}`;},33);
+function N(rx,ry){return{x:C.width*rx,y:C.height*ry};}
+function nodes(){return{gm1:N(.47,.07),gm2:N(.61,.07),spA:N(.27,.22),spB:N(.71,.22),lf1:N(.17,.42),lf2:N(.49,.42),lf3:N(.81,.42),c1:N(.06,.63),c2:N(.19,.63),c3:N(.33,.63),pl:N(.49,.63),au:N(.63,.63),sw:N(.09,.83),rc:N(.25,.83),en:N(.43,.83),cl:N(.61,.83),mv:N(.79,.83)};}
+const COL={ok:'#00e676',warn:'#ffab00',err:'#ff1744',info:'#00b0ff',teal:'#00bcd4',ptp:'#ffab00',anc:'#ff4fa0',audio:'#00e676'};
+function nc(t){
+  if(t==='gm1')return S.pA?COL.err:COL.ptp;
+  if(t==='gm2')return(S.pA&&S.pB)?COL.err:(S.pA?COL.warn:COL.ok);
+  if(t==='spA')return S.qA?COL.err:COL.ok;
+  if(t==='spB')return S.qB?COL.err:COL.ok;
+  if(S.qA&&S.qB)return COL.err;
+  if(S.pA&&S.pB)return COL.warn;
+  return COL.ok;
+}
+function dN(p,lbl,ico,type,gl){
+  const W=74,H=46,r=7,x=p.x-W/2,y=p.y-H/2,col=nc(type);
+  const gx=gl?(Math.random()-.5)*5:0,gy=gl?(Math.random()-.5)*2.5:0;
+  cx.save();cx.translate(gx,gy);
+  cx.shadowColor=col;cx.shadowBlur=gl?18:7;
+  cx.beginPath();cx.roundRect(x,y,W,H,r);cx.fillStyle='rgba(8,15,31,0.97)';cx.fill();
+  cx.strokeStyle=col;cx.lineWidth=gl?2:1.5;cx.stroke();cx.shadowBlur=0;
+  cx.beginPath();cx.roundRect(x,y,W,4,[r,r,0,0]);cx.fillStyle=col+'33';cx.fill();
+  cx.font='13px serif';cx.textAlign='center';cx.fillText(ico,p.x,p.y-5);
+  lbl.split('\n').forEach((l,i)=>{cx.font=`600 8px 'Barlow Condensed',sans-serif`;cx.fillStyle=gl?col:'#b8d4ec';cx.fillText(l,p.x,p.y+7+i*10);});
+  cx.beginPath();cx.arc(x+W-9,y+9,3,0,Math.PI*2);cx.fillStyle=col;cx.shadowColor=col;cx.shadowBlur=5;cx.fill();cx.shadowBlur=0;
+  cx.restore();
+}
+function dL(a,b,col,w,dash,dead,lbl){
+  cx.save();cx.beginPath();cx.moveTo(a.x,a.y);cx.lineTo(b.x,b.y);
+  cx.strokeStyle=dead?'#ff174450':col;cx.lineWidth=dead?2:w||1.5;
+  if(dash||dead)cx.setLineDash([5,4]);else cx.setLineDash([]);
+  cx.shadowColor=dead?COL.err:col;cx.shadowBlur=dead?8:3;cx.stroke();
+  cx.setLineDash([]);cx.shadowBlur=0;
+  if(dead){const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;cx.font='bold 12px serif';cx.fillStyle=COL.err;cx.textAlign='center';cx.fillText('✕',mx,my+5);}
+  if(lbl&&!dead){cx.font=`600 7px 'IBM Plex Mono',monospace`;cx.fillStyle=col+'bb';cx.textAlign='center';cx.fillText(lbl,(a.x+b.x)/2,(a.y+b.y)/2-6);}
+  cx.restore();
+}
+function pk(a,b,t,sp,col,off,sz){const p=((t*sp+(off||0))%1);cx.beginPath();cx.arc(a.x+(b.x-a.x)*p,a.y+(b.y-a.y)*p,sz||4,0,Math.PI*2);cx.fillStyle=col;cx.shadowColor=col;cx.shadowBlur=7;cx.fill();cx.shadowBlur=0;}
+function render(ts){
+  S.t=(ts||0)*.001;const t=S.t,W=C.width,H=C.height;const n=nodes();
+  cx.clearRect(0,0,W,H);
+  cx.save();cx.strokeStyle='rgba(0,100,200,0.035)';cx.lineWidth=1;
+  for(let x=0;x<W;x+=50){cx.beginPath();cx.moveTo(x,0);cx.lineTo(x,H);cx.stroke();}
+  for(let y=0;y<H;y+=50){cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke();}
+  cx.restore();
+  const vg=cx.createRadialGradient(W/2,H/2,H*.25,W/2,H/2,H*.85);
+  vg.addColorStop(0,'transparent');vg.addColorStop(1,'rgba(0,0,0,0.5)');
+  cx.fillStyle=vg;cx.fillRect(0,0,W,H);
+  const ptpD=S.pA&&S.pB,noP=S.qA&&S.qB,pAok=!S.qA,pBok=!S.qB,gl=ptpD||noP;
+  const ptpC=S.pA?(ptpD?COL.err:COL.warn):COL.ptp;
+  [n.spA,n.spB,n.lf1,n.lf2,n.lf3].forEach(nd=>{dL(n.gm1,nd,ptpC,1,true,ptpD,'');if(!S.pA)pk(n.gm1,nd,t,.4+Math.random()*.05,COL.ptp,Math.random()*.9,3);});
+  if(S.pA&&!S.pB)[n.spA,n.spB].forEach(nd=>{dL(n.gm2,nd,COL.warn,1,true,false,'BACKUP PTP');pk(n.gm2,nd,t,.5,COL.warn,.3,3);});
+  const cA=pAok?COL.info:COL.err;[n.lf1,n.lf2,n.lf3].forEach(l=>dL(n.spA,l,cA,2,false,!pAok,pAok?'PATH A':''));
+  const cB=pBok?COL.teal:COL.err;[n.lf1,n.lf2,n.lf3].forEach(l=>dL(n.spB,l,cB,2,false,!pBok,pBok?'PATH B':''));
+  [[n.c1,n.lf1],[n.c2,n.lf1],[n.c3,n.lf2],[n.pl,n.lf2],[n.au,n.lf2]].forEach(([s,l])=>dL(s,l,noP?COL.err:COL.info,1.5,false,noP,''));
+  [[n.sw,n.lf1],[n.rc,n.lf1],[n.en,n.lf2],[n.cl,n.lf3],[n.mv,n.lf3]].forEach(([d,l])=>dL(l,d,noP?COL.err:(ptpD?COL.warn:COL.ok),1.5,false,noP,''));
+  if(pAok){[[n.c1,n.lf1],[n.c2,n.lf1],[n.c3,n.lf2],[n.pl,n.lf2]].forEach(([s,l],i)=>{pk(s,l,t,.5+i*.05,COL.info,i*.25);pk(n.spA,l,t,.45,COL.info,i*.2);});pk(n.au,n.lf2,t,.6,COL.audio,.1);pk(n.au,n.lf2,t,.6,COL.audio,.55);pk(n.c1,n.lf1,t,.35,COL.anc,.7,3);}
+  if(pBok){[[n.c1,n.lf1],[n.c2,n.lf1]].forEach(([s,l],i)=>{pk(s,l,t,.44,COL.teal,i*.3+.15);pk(n.spB,l,t,.40,COL.teal,i*.25+.4);});pk(n.au,n.lf2,t,.55,COL.teal,.6);}
+  if(!noP){const oc=ptpD?COL.warn:COL.ok;[[n.lf1,n.sw],[n.lf1,n.rc],[n.lf2,n.en],[n.lf3,n.cl],[n.lf3,n.mv]].forEach(([l,d],i)=>{pk(l,d,t,.45+i*.04,oc,i*.2);pk(l,d,t,.45+i*.04,oc,i*.2+.5);});}
+  if(pAok!==pBok){const al=.6+.4*Math.sin(t*5);cx.save();cx.globalAlpha=al;cx.textAlign='center';cx.font=`700 9px 'Barlow Condensed',sans-serif`;cx.fillStyle=COL.ok;cx.fillText(`✓ ST 2022-7 SEAMLESS PROTECTION — PATH ${pAok?'A':'B'} ONLY`,W/2,H*.33);cx.font=`400 7px 'IBM Plex Mono',monospace`;cx.fillStyle=COL.ok+'88';cx.fillText('Zero packet loss · Hitless failover confirmed',W/2,H*.33+12);cx.restore();}
+  if(ptpD){S.drift=Math.sin(t*3.2)*18+Math.sin(t*8)*8;const bx=W*.75,by=H*.30;cx.save();cx.textAlign='center';cx.font=`700 8px 'Barlow Condensed',sans-serif`;cx.fillStyle=COL.warn;cx.fillText('TIMING DRIFT — PTP UNLOCKED',bx,by-18);cx.globalAlpha=.7+.3*Math.sin(t*7);cx.font=`700 22px 'IBM Plex Mono',monospace`;cx.fillStyle=COL.err;cx.fillText(`Δ${Math.abs(S.drift).toFixed(1)}ms`,bx,by);cx.globalAlpha=1;cx.font=`400 7px 'IBM Plex Mono',monospace`;cx.fillStyle=COL.warn+'88';cx.fillText('LIP-SYNC ERROR · AUDIO/VIDEO DESYNC',bx,by+13);cx.restore();}
+  if(noP){cx.save();cx.globalAlpha=.6+.4*Math.sin(t*9);cx.textAlign='center';cx.font=`900 12px 'Barlow Condensed',sans-serif`;cx.fillStyle=COL.err;cx.fillText('⚡  BROADCAST SIGNAL LOST — NO NETWORK PATH AVAILABLE  ⚡',W/2,H*.31);cx.restore();}
+  dN(n.gm1,'GM-01\nPRIMARY','⏰','gm1',S.pA);dN(n.gm2,'GM-02\nBACKUP','⏰','gm2',ptpD);
+  dN(n.spA,'SPINE-A\n100GbE','🔀','spA',!pAok);dN(n.spB,'SPINE-B\n100GbE','🔀','spB',!pBok);
+  dN(n.lf1,'LEAF-01\n25GbE','🔀','lf',noP);dN(n.lf2,'LEAF-02\n25GbE','🔀','lf',noP);dN(n.lf3,'LEAF-03\n25GbE','🔀','lf',noP);
+  dN(n.c1,'CAM-01\n4K60p','📹','src',gl);dN(n.c2,'CAM-02\n4K60p','📹','src',gl);dN(n.c3,'CAM-03\nHD60p','📹','src',gl);
+  dN(n.pl,'PLAYOUT\nSVR-01','🖥️','src',gl);dN(n.au,'AUDIO\nDESK-01','🎚️','src',gl);
+  dN(n.sw,'PROD\nSWITCHER','🎬','dst',gl);dN(n.rc,'RECORDER\nNVMe','💾','dst',gl);dN(n.en,'TX\nENCODER','📡','dst',gl);dN(n.cl,'CLOUD\nGATEWAY','☁️','dst',gl);dN(n.mv,'MULTI\nVIEWER','📊','dst',gl);
+  cx.save();cx.font=`700 7px 'Barlow Condensed',sans-serif`;cx.fillStyle='rgba(0,176,255,0.18)';cx.textAlign='left';
+  cx.fillText('PTP STRATUM',5,H*.10);cx.fillText('IP FABRIC',5,H*.26);cx.fillText('ACCESS LAYER',5,H*.46);cx.fillText('SOURCES',5,H*.67);cx.fillText('DESTINATIONS',5,H*.87);
+  cx.strokeStyle='rgba(0,176,255,0.05)';cx.lineWidth=1;[.13,.29,.51,.71].forEach(ry=>{cx.beginPath();cx.moveTo(0,H*ry);cx.lineTo(W,H*ry);cx.stroke();});
+  cx.restore();
+  requestAnimationFrame(render);
+}
+function drawWave(id,col,hist,fault){const cv=document.getElementById('wv-'+id);if(!cv)return;const wc=cv.getContext('2d');const W=cv.offsetWidth||230,H=26;cv.width=W;const v=fault?(Math.random()-.5)*H*.9:H/2+Math.sin(S.t*8+Math.random()*.4)*H*.35;hist.push(v);if(hist.length>W)hist.shift();wc.clearRect(0,0,W,H);wc.beginPath();hist.forEach((p,i)=>{i===0?wc.moveTo(i,p):wc.lineTo(i,p);});wc.strokeStyle=fault?'#ff174466':col+'99';wc.lineWidth=1.5;wc.shadowColor=col;wc.shadowBlur=5;wc.stroke();wc.shadowBlur=0;}
+setInterval(()=>{const noP=S.qA&&S.qB,ptpD=S.pA&&S.pB;drawWave('c1',COL.info,WH.c1,noP||ptpD);drawWave('c2',COL.info,WH.c2,noP);drawWave('au',COL.audio,WH.au,noP||ptpD);drawWave('an',COL.anc,WH.an,noP);},50);
+function log(sev,src,msg){const el=document.getElementById('rp-log');const n=new Date();const ts=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}.${String(n.getMilliseconds()).padStart(3,'0')}`;const sm={ok:'v-ok',warn:'v-warn',err:'v-err',info:'v-info',crit:'v-crit'};const row=document.createElement('div');row.className='ll';row.style.opacity='0';row.style.transition='opacity 0.2s';row.innerHTML=`<span class="lt">${ts}</span><span class="lv ${sm[sev]||'v-info'}">${src}</span><span class="lm">${msg}</span>`;el.appendChild(row);requestAnimationFrame(()=>row.style.opacity='1');el.scrollTop=el.scrollHeight;S.lc++;if(S.lc>120){el.removeChild(el.firstChild);S.lc--;}}
+function setAl(id,lv,txt){const el=document.getElementById(id);if(!el)return;el.querySelector('.ad').className='ad a-'+lv;el.querySelector('span').textContent=txt;el.className='ai'+(lv!=='ok'?' active':'');}
+function updateAlarms(){const ptpD=S.pA&&S.pB,noP=S.qA&&S.qB;document.getElementById('alarmbar').className=(S.pA||S.qA||S.qB)?'aa':'';setAl('al-ptp',S.pA?(ptpD?'err':'warn'):'ok',S.pA?(ptpD?'PTP: BOTH DOWN':'PTP: BACKUP'):'PTP: LOCKED');setAl('al-pa',S.qA?'err':'ok',S.qA?'PATH-A: FAIL':'PATH-A: OK');setAl('al-pb',S.qB?'err':'ok',S.qB?'PATH-B: FAIL':'PATH-B: OK');const dual=!S.qA&&!S.qB;setAl('al-22',noP?'err':(dual?'ok':'warn'),noP?'2022-7: NO PATH':(dual?'2022-7: DUAL':'2022-7: SINGLE'));setAl('al-st',noP?'err':'ok',noP?'STREAMS: 0/18':'STREAMS: 18/18');setAl('al-nm',noP?'err':'ok',noP?'NMOS: LOST':'NMOS: 24 NODES');document.getElementById('al-mode').textContent=noP?'MODE: ⚡ CRITICAL OUTAGE':(S.pA||S.qA||S.qB?'MODE: ⚠ FAULT ACTIVE':'MODE: NORMAL OPERATION');}
+function setM(id,v,cls,bid,pct){const e=document.getElementById(id);if(e){e.textContent=v;e.className='mv '+cls;}const b=document.getElementById(bid);if(b){b.style.width=pct+'%';b.className='mf '+cls;}}
+function updateHUD(){const noP=S.qA&&S.qB,ptpD=S.pA&&S.pB,dual=!S.qA&&!S.qB;const dr=ptpD?(Math.sin(S.t*3)*18+Math.sin(S.t*8)*8):0;const ph=document.getElementById('h-ptp'),ps=document.getElementById('h-ptps');if(ptpD){ph.textContent='ALL LOST — FREE-RUN';ph.className='hv err';ps.textContent='Drift: +'+Math.abs(dr).toFixed(1)+'ms growing';}else if(S.pA){ph.textContent='GM-02 BACKUP ACTIVE';ph.className='hv warn';ps.textContent='Offset: +42ns | Degraded';}else{ph.textContent='GM-01 LOCKED';ph.className='hv ok';ps.textContent='Offset: +'+(10+Math.floor(Math.sin(S.t)*3))+'ns · Jitter: 3ns';}
+const sh=document.getElementById('h-str');sh.textContent=noP?'0 / 18':'18 / 18';sh.className='hv '+(noP?'err':ptpD?'warn':'info');
+const h22=document.getElementById('h-22'),h22s=document.getElementById('h-22s');if(noP){h22.textContent='NO PATH ✗✗';h22.className='hv err';h22s.textContent='ST 2022-7 exhausted';}else if(dual){h22.textContent='DUAL PATH ●●';h22.className='hv ok';h22s.textContent='A: 0 loss · B: 0 loss';}else{h22.textContent='SINGLE PATH ●○';h22.className='hv warn';h22s.textContent=(S.qA?'A: FAIL':'B: FAIL')+' · Protected';}
+document.getElementById('h-bw').textContent=(noP?'0.0':'147.3')+' Gbps';document.getElementById('h-bw').className='hv '+(noP?'err':'info');
+document.getElementById('h-nmos').textContent=noP?'IS-04: 0/24 LOST':'IS-04: 24 nodes';document.getElementById('h-nmos').className='hv '+(noP?'err':'ok');
+const hl=document.getElementById('h-loss'),hls=document.getElementById('h-losss');hl.textContent=(noP?'100.000':'0.000')+' %';hl.className='hv '+(noP?'err':'ok');hls.textContent=noP?'Total outage':(ptpD?'Lip-sync: '+Math.abs(dr).toFixed(1)+'ms':'Frames dropped: 0');
+setM('m-po',S.pA?'FREE-RUN !!!':'+'+(10+Math.floor(Math.sin(S.t)*3))+'ns',S.pA?(ptpD?'err':'warn'):'ok','mf-po',S.pA?100:2);
+setM('m-pj',S.pA?'N/A':'3 ns','ok','mf-pj',1);setM('m-plA',S.qA?'100.000 %':'0.000 %',S.qA?'err':'ok','mf-plA',S.qA?100:0);setM('m-plB',S.qB?'100.000 %':'0.000 %',S.qB?'err':'ok','mf-plB',S.qB?100:0);setM('m-lip',ptpD?Math.abs(dr).toFixed(1)+' ms':'0.04 ms',ptpD?'err':'ok','mf-lip',ptpD?Math.min(Math.abs(dr)*5,100):1);setM('m-abuf','72 ms','ok','mf-abuf',72);setM('m-vs',noP?'0 / 6':'6 / 6',noP?'err':'ok','mf-vs',noP?0:100);setM('m-as',noP?'0 / 8':'8 / 8',noP?'err':'ok','mf-as',noP?0:100);setM('m-ancs',noP?'0 / 4':'4 / 4',noP?'err':'ok','mf-ancs',noP?0:100);setM('m-nmos',noP?'0/24 LOST':'24/24 OK',noP?'err':'ok','mf-nmos',noP?0:100);
+document.getElementById('sb-p').textContent=S.pA?(ptpD?'PTP: BOTH GM DOWN':'PTP: BACKUP GM-02'):'PTP: LOCKED GM-01';document.getElementById('sb-pd').style.background=S.pA?(ptpD?'var(--err)':'var(--warn)'):'var(--ok)';document.getElementById('sb-n').textContent=noP?'NETWORK: ⚡ NO PATH':(dual?'NETWORK: DUAL-PATH ACTIVE':`NETWORK: PATH ${S.qA?'B':'A'} ONLY`);document.getElementById('sb-nd').style.background=noP?'var(--err)':(dual?'var(--ok)':'var(--warn)');document.getElementById('sb-s').textContent=noP?'STREAMS: 0/18 LOST':'STREAMS: 18/18 OK';document.getElementById('sb-sd').style.background=noP?'var(--err)':'var(--ok)';
+const aus=document.getElementById('ws-aus'),aud=document.getElementById('ws-aud');aus.textContent=ptpD?'⚠ DRIFTING':'LOCKED';aus.style.color=ptpD?'var(--warn)':'var(--ok)';aud.textContent=ptpD?Math.abs(dr).toFixed(1)+'ms':'0.04ms';document.getElementById('ws-ans').textContent=noP?'LOST':'NOMINAL';document.getElementById('ws-ans').style.color=noP?'var(--err)':'var(--ok)';
+const dd=(id,fail)=>{const e=document.getElementById(id);if(!e)return;e.style.background=fail?'var(--err)':'var(--ok)';e.style.boxShadow=fail?'0 0 5px var(--err)':'none';};
+dd('d-gm1',S.pA);dd('d-gm2',ptpD);dd('d-spA',S.qA);dd('d-spB',S.qB);['d-c1','d-c2','d-c3','d-pl','d-au','d-sw','d-rc','d-en','d-cl','d-mv'].forEach(id=>dd(id,noP));}
+setInterval(()=>{updateHUD();updateAlarms();},250);
+const FD={
+  ptp:{mc:'mw',ico:'⚠️',col:'#ffab00',title:'PTP PRIMARY GRANDMASTER LOST',body:`<strong>GM-01</strong> (GPS-disciplined primary Grandmaster) has gone offline. The BMCA (Best Master Clock Algorithm) promotes <strong>GM-02</strong> to master within ~200ms. During this window, all devices enter UNCALIBRATED state. Once GM-02 takes over, the system runs at degraded accuracy (±40ns vs ±12ns nominal).`,tech:`ST 2059-2 / IEEE 1588 BMCA activates automatically\nDevices: MASTER → UNCALIBRATED → SLAVE (GM-02)\nPTP offset: ±12ns nominal → ±40ns degraded\nRTP timestamps remain coherent via GM-02\nNMOS IS-09: system PTP parameters re-announced`},
+  ptpbk:{mc:'me',ico:'🔮',col:'#d500f9',title:'ALL PTP CLOCKS OFFLINE — FREE-RUN MODE',body:`<strong>GM-01 and GM-02 are both offline.</strong> No PTP master exists on the network. Every device runs its own internal oscillator drifting at ±50–200 ppm independently. Within milliseconds, audio and video timestamps diverge. Result: <strong>lip-sync errors, frame tears, and stream corruption</strong>. Streams do not stop — they desynchronize.`,tech:`Devices enter LISTENING state — no master elected\nRTP timestamps diverge per-device at ~50–200 ppm\nLip-sync error grows: ~18ms/minute\nST2110-30: audio slips 1 sample / ~600ms at 48kHz\nReceiver playout buffers drain → output artifacts`},
+  pathA:{mc:'mw',ico:'🔴',col:'#00e676',title:'SPINE-A FAILURE — PATH A DOWN',body:`<strong>SPINE-A 100GbE</strong> has failed. <strong>ST 2022-7 Seamless Protection</strong> detects the RTP sequence gap on Path A and switches all traffic exclusively to Path B. The transition is <strong>completely hitless</strong> — zero frames lost, zero audio dropouts. The system is now vulnerable on a single path.`,tech:`ST 2022-7: RTP sequence gap → Path B selected\nDuplicate elimination disabled (one path only)\nIGMP: multicast groups re-learned on Path B\nPTP: Boundary Clocks on leaves maintain sync\nNMOS IS-07: PATH_A_FAULT dispatched to controller`},
+  pathB:{mc:'mw',ico:'🔴',col:'#00e676',title:'SPINE-B FAILURE — PATH B DOWN',body:`<strong>SPINE-B 100GbE</strong> (redundant path) has failed. <strong>ST 2022-7</strong> immediately uses Path A exclusively. Zero packet loss — hitless failover. However, <strong>full redundancy is gone</strong>. If Path A also fails, there is no recovery. Urgent alarm raised to restore Path B.`,tech:`ST 2022-7: Path A carries 100% of all traffic\nMulticast: IGMP re-converges on Path A interfaces\nSMPTE RP 2110-25: recommends restore < 60s\nNMOS IS-07: PATH_B_FAULT tally event dispatched\nPTP: unaffected — Boundary Clocks on leaf switches`},
+  both:{mc:'me',ico:'💀',col:'#ff1744',title:'TOTAL FABRIC FAILURE — ALL PATHS DOWN',body:`<strong>SPINE-A and SPINE-B have both failed simultaneously.</strong> ST 2022-7 has no remaining path. All 18 streams — 6 video, 8 audio, 4 ANC — are immediately lost. The broadcast goes dark. NMOS IS-04 devices begin unregistering. <strong>Manual network restoration is required.</strong>`,tech:`ST 2022-7: ALL paths exhausted — no recovery\nAll RTP receivers: buffer empty → output frozen\nNMOS IS-04: heartbeat timeouts → cascade unregister\nProduction Switcher: loss-of-signal on ALL inputs\nTX Encoder: output → slate/black\nRecovery: physical path restoration required`}
+};
+function showModal(type){const d=FD[type];if(!d)return;const m=document.getElementById('fm');document.getElementById('fm-i').textContent=d.ico;document.getElementById('fm-t').textContent=d.title;document.getElementById('fm-t').style.color=d.col;document.getElementById('fm-b').innerHTML=d.body;document.getElementById('fm-k').textContent=d.tech;document.getElementById('fm-k').style.borderColor=d.col;m.className='show '+d.mc;let sec=7;const cd=document.getElementById('fm-c');if(S.mt)clearInterval(S.mt);cd.textContent=`Auto-dismiss in ${sec}s`;S.mt=setInterval(()=>{sec--;cd.textContent=sec>0?`Auto-dismiss in ${sec}s`:'';if(sec<=0){clearInterval(S.mt);m.className=d.mc;setTimeout(()=>m.className='',400);}},1000);}
+function clrBtns(){document.querySelectorAll('.fb').forEach(b=>b.classList.remove('active'));}
+function badge(t,c){const b=document.getElementById('fi-badge');b.textContent=t;b.className='sb b-'+c;}
+function inject(type){clrBtns();const b=document.getElementById('btn-'+type);if(b)b.classList.add('active');showModal(type);
+  if(type==='ptp'){S.pA=true;badge('PTP FAULT','warn');log('crit','PTP-SYS','GM-01 Grandmaster OFFLINE — BMCA failover activating');setTimeout(()=>log('warn','PTP-BM','Best Master Clock: promoting GM-02 to Grandmaster'),450);setTimeout(()=>log('info','PTP-02','GM-02 assuming Grandmaster role — backup active'),950);setTimeout(()=>log('warn','PTP-QA','Accuracy degraded: ±40ns (nominal ±12ns)'),1500);setTimeout(()=>log('info','NMOS','IS-09: PTP system parameters re-announced'),2800);}
+  else if(type==='ptpbk'){if(!S.pA){S.pA=true;log('warn','PTP-SYS','Auto-killing GM-01 first...');setTimeout(kgm2,1200);}else kgm2();badge('PTP BOTH DOWN','err');}
+  else if(type==='pathA'){S.qA=true;badge('PATH-A FAIL','warn');log('err','SPINE-A','SPINE-A 100GbE: link failure — all ports down');setTimeout(()=>log('info','2022-7','ST 2022-7: RTP sequence gap on Path A'),280);setTimeout(()=>log('ok','2022-7','Seamless protection engaged — all traffic on Path B'),480);setTimeout(()=>log('ok','STREAM','18/18 streams intact — hitless failover confirmed'),720);setTimeout(()=>log('warn','NET','IGMP: multicast re-converging on Path B'),1300);setTimeout(()=>log('warn','NMOS','IS-07: PATH_A_FAULT event dispatched to controller'),2000);setTimeout(()=>log('warn','OPS','ALERT: Redundancy lost — restore SPINE-A within 60s'),2800);}
+  else if(type==='pathB'){S.qB=true;badge('PATH-B FAIL','warn');log('err','SPINE-B','SPINE-B 100GbE: redundant path failure');setTimeout(()=>log('info','2022-7','ST 2022-7: gap on Path B → switching to Path A'),280);setTimeout(()=>log('ok','2022-7','Seamless failover to Path A — zero packet loss'),480);setTimeout(()=>log('ok','STREAM','18/18 streams intact via Path A — hitless confirmed'),720);setTimeout(()=>log('warn','NET','Safety net eliminated — single point of failure active'),1400);setTimeout(()=>log('warn','NMOS','IS-07: PATH_B_FAULT tally event dispatched'),2000);}
+  else if(type==='both'){S.qA=true;S.qB=true;badge('CRITICAL','err');log('crit','SPINE-A','SPINE-A: total failure — Path A lost');setTimeout(()=>log('crit','SPINE-B','SPINE-B: total failure — Path B lost'),220);setTimeout(()=>log('crit','2022-7','ST 2022-7: ALL PATHS EXHAUSTED — no recovery'),440);setTimeout(()=>log('crit','VIDEO','VIDEO: 0/6 streams — all receivers signal loss'),680);setTimeout(()=>log('crit','AUDIO','AUDIO: 0/8 — playout buffer depleted'),840);setTimeout(()=>log('crit','ANC','ANC: 0/4 — timecode and CC lost'),1000);setTimeout(()=>log('crit','TX','TX-ENCODER-01: output → slate/black'),1280);setTimeout(()=>log('err','NMOS','IS-04: heartbeat timeout cascade — unregistering'),2100);setTimeout(()=>log('crit','OPS','BROADCAST OUTAGE — manual restoration required'),3000);}
+  updateAlarms();}
+function kgm2(){S.pB=true;log('crit','PTP-SYS','GM-02 ALSO OFFLINE — NO PTP MASTER');setTimeout(()=>log('crit','PTP-ALL','All devices LISTENING — free-run clocks'),450);setTimeout(()=>log('err','SYNC','Clock drift accumulating — devices desynchronizing'),1000);setTimeout(()=>log('err','AUDIO','ST2110-30: audio/video timestamp divergence'),1600);setTimeout(()=>log('crit','SYNC','LIP-SYNC ERROR: Δ > 2ms — viewer impact imminent'),2400);updateAlarms();}
+function resetAll(){clrBtns();S.pA=false;S.pB=false;S.qA=false;S.qB=false;S.drift=0;if(S.mt)clearInterval(S.mt);document.getElementById('fm').className='';badge('NOMINAL','ok');updateAlarms();log('ok','SYS','All fault states cleared — restoring nominal operation');setTimeout(()=>log('ok','PTP','GM-01 online — GPS lock · LOCKED +12ns'),400);setTimeout(()=>log('ok','PTP','GM-02 returning to Slave standby role'),700);setTimeout(()=>log('ok','NET','SPINE-A 100GbE restored — Path A online'),900);setTimeout(()=>log('ok','NET','SPINE-B 100GbE restored — Path B online'),1100);setTimeout(()=>log('ok','2022-7','Dual-path protection re-engaged'),1400);setTimeout(()=>log('ok','STREAM','18/18 streams nominal: 6V + 8A + 4ANC'),1800);setTimeout(()=>log('info','NMOS','IS-04: 24 devices re-registered, 18 connections active'),2300);}
+function rTab(t){['log','metrics','streams'].forEach(id=>{document.getElementById('rp-'+id).classList.toggle('active',id===t);document.getElementById('rt-'+id).classList.toggle('active',id===t);});}
+setInterval(()=>{if(!S.pA&&!S.qA&&!S.qB){const msgs=[['info','PTP',`GM-01 offset: +${10+Math.floor(Math.random()*6)}ns · jitter: ${2+Math.floor(Math.random()*2)}ns`],['ok','2022-7','Path A: 0 loss · Path B: 0 loss · dual nominal'],['ok','STREAM',`CAM-01 4K60p: ${(23.7+Math.random()*.2).toFixed(1)}Gbps · 0 pkt loss`],['info','NMOS','IS-04 heartbeat: 24/24 nodes · 18/18 flows active'],['ok','AUDIO','AUDIO-01: 64ch · buf:72ms · AES67 sync locked'],['ok','ANC','ANC-01: timecode valid · CC flowing · tally nominal'],['info','NET',`Fabric: ${(36+Math.random()*2).toFixed(1)}% of 400Gbps utilized`]];const m=msgs[Math.floor(Math.random()*msgs.length)];log(m[0],m[1],m[2]);}},3200);
+setTimeout(()=>log('ok','SYS','ST 2110 Production facility initialized — MCR online'),100);
+setTimeout(()=>log('ok','PTP','GM-01: GPS lock acquired · stratum 1 · LOCKED +12ns'),350);
+setTimeout(()=>log('ok','PTP','GM-02: GPS lock · standby backup ready'),600);
+setTimeout(()=>log('ok','NET','SPINE-A 100GbE: all 48 ports UP · Path A nominal'),850);
+setTimeout(()=>log('ok','NET','SPINE-B 100GbE: all 48 ports UP · Path B nominal'),1050);
+setTimeout(()=>log('ok','2022-7','ST 2022-7 dual-path protection engaged'),1250);
+setTimeout(()=>log('info','NMOS','IS-04 registry: 24 nodes discovered and registered'),1550);
+setTimeout(()=>log('info','NMOS','IS-05: 18 sender→receiver connections established'),1800);
+setTimeout(()=>log('ok','VIDEO','CAM-01/02 4K60p · CAM-03 HD60p — all nominal'),2100);
+setTimeout(()=>log('ok','AUDIO','AUDIO-DESK-01: 64ch 48kHz/24-bit · ST2110-30 nominal'),2400);
+setTimeout(()=>log('ok','ANC','ANC streams: timecode+CC+tally · ST2110-40 nominal'),2700);
+setTimeout(()=>log('ok','SYS','Facility operational · 18/18 streams · 147.3 Gbps'),3100);
+render();
+</script>
+</body>
+</html>

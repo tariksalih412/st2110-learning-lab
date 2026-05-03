@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SMPTE ST 2110 — Live Fault Simulation</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #04080f;
+  --bg2:      #070d18;
+  --panel:    #0b1525;
+  --panel2:   #0f1e36;
+  --ok:       #00ff9d;
+  --warn:     #ffd700;
+  --err:      #ff3b5c;
+  --info:     #00c8ff;
+  --dim:      #3a6080;
+  --text:     #c8e0f0;
+  --mono:     'Share Tech Mono', monospace;
+  --body:     'Exo 2', sans-serif;
+}
+
+body {
+  background: var(--bg);
+  font-family: var(--body);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Scanline overlay */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(0deg,
+    transparent, transparent 2px,
+    rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ── HEADER ── */
+.header {
+  background: linear-gradient(180deg, rgba(0,200,255,0.07) 0%, transparent 100%);
+  border-bottom: 1px solid rgba(0,200,255,0.15);
+  padding: 20px 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.logo { display: flex; align-items: center; gap: 14px; }
+.logo-icon {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, #00c8ff, #00ff9d);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 0 20px rgba(0,200,255,0.4);
+}
+.logo-text h1 {
+  font-size: 18px; font-weight: 900; letter-spacing: 2px;
+  background: linear-gradient(90deg, #00c8ff, #00ff9d);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.logo-text p { font-size: 11px; color: var(--dim); letter-spacing: 1px; margin-top: 2px; }
+.system-status {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--mono); font-size: 12px;
+}
+.status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-dot.ok    { background: var(--ok);   box-shadow: 0 0 8px var(--ok); }
+.status-dot.warn  { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+.status-dot.err   { background: var(--err);  box-shadow: 0 0 8px var(--err); animation: blink 0.6s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+/* ── LAYOUT ── */
+.main {
+  display: grid;
+  grid-template-columns: 260px 1fr 300px;
+  grid-template-rows: 1fr;
+  height: calc(100vh - 85px);
+  min-height: 600px;
+}
+@media(max-width:1100px){
+  .main { grid-template-columns: 1fr; grid-template-rows: auto; height: auto; }
+}
+
+/* ── SIDEBAR CONTROLS ── */
+.sidebar {
+  background: var(--panel);
+  border-right: 1px solid rgba(0,200,255,0.1);
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.sidebar-section h3 {
+  font-size: 11px; letter-spacing: 2px; color: var(--dim);
+  text-transform: uppercase; margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.fault-btn {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid;
+  background: transparent;
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  transition: all 0.2s;
+  text-align: left;
+}
+.fault-btn .btn-icon { font-size: 18px; }
+.fault-btn .btn-text { display: flex; flex-direction: column; gap: 2px; }
+.fault-btn .btn-sub  { font-size: 10px; font-weight: 400; opacity: 0.7; }
+
+.fault-btn.ptp-btn  { border-color: rgba(255,215,0,0.4); color: var(--warn); }
+.fault-btn.ptp-btn:hover  { background: rgba(255,215,0,0.08); border-color: var(--warn); box-shadow: 0 0 15px rgba(255,215,0,0.2); }
+.fault-btn.ptp-btn.active { background: rgba(255,215,0,0.15); border-color: var(--warn); box-shadow: 0 0 20px rgba(255,215,0,0.3); }
+
+.fault-btn.path-btn { border-color: rgba(255,59,92,0.4); color: var(--err); }
+.fault-btn.path-btn:hover { background: rgba(255,59,92,0.08); border-color: var(--err); box-shadow: 0 0 15px rgba(255,59,92,0.2); }
+.fault-btn.path-btn.active{ background: rgba(255,59,92,0.15); border-color: var(--err); box-shadow: 0 0 20px rgba(255,59,92,0.3); }
+
+.fault-btn.both-btn { border-color: rgba(255,100,0,0.4); color: #ff8c00; }
+.fault-btn.both-btn:hover { background: rgba(255,100,0,0.08); border-color: #ff8c00; }
+.fault-btn.both-btn.active{ background: rgba(255,100,0,0.15); border-color: #ff8c00; }
+
+.reset-btn {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,255,157,0.3);
+  background: rgba(0,255,157,0.06);
+  color: var(--ok);
+  font-family: var(--body);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: all 0.2s;
+  letter-spacing: 1px;
+}
+.reset-btn:hover { background: rgba(0,255,157,0.14); box-shadow: 0 0 20px rgba(0,255,157,0.2); }
+
+.metric-card {
+  background: var(--bg2);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+}
+.metric-label { font-size: 10px; letter-spacing: 1px; color: var(--dim); margin-bottom: 4px; }
+.metric-value { font-family: var(--mono); font-size: 14px; color: var(--ok); }
+.metric-value.warn  { color: var(--warn); }
+.metric-value.err   { color: var(--err); animation: blink 0.8s infinite; }
+
+/* ── CANVAS AREA ── */
+.canvas-area {
+  position: relative;
+  overflow: hidden;
+  background: var(--bg2);
+}
+canvas { display: block; width: 100%; height: 100%; }
+
+/* ── OVERLAY INFO ── */
+.fault-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s;
+  z-index: 10;
+}
+.fault-overlay.visible { opacity: 1; }
+.fault-banner {
+  background: rgba(4,8,15,0.92);
+  border: 2px solid;
+  border-radius: 16px;
+  padding: 24px 32px;
+  max-width: 460px;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+.fault-banner.ptp  { border-color: var(--warn); box-shadow: 0 0 40px rgba(255,215,0,0.3); }
+.fault-banner.path { border-color: var(--err);  box-shadow: 0 0 40px rgba(255,59,92,0.3); }
+.fault-banner.both { border-color: #ff8c00;     box-shadow: 0 0 40px rgba(255,140,0,0.3); }
+.fault-banner h2   { font-size: 20px; font-weight: 900; margin-bottom: 10px; letter-spacing: 1px; }
+.fault-banner p    { font-size: 13px; color: var(--text); line-height: 1.65; }
+.fault-banner.ptp h2  { color: var(--warn); }
+.fault-banner.path h2 { color: var(--err); }
+.fault-banner.both h2 { color: #ff8c00; }
+
+/* ── LOG PANEL ── */
+.log-panel {
+  background: var(--panel);
+  border-left: 1px solid rgba(0,200,255,0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.log-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  text-transform: uppercase;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.log-clear { font-size: 10px; cursor: pointer; color: var(--dim); text-decoration: underline; font-family: var(--mono); }
+.log-clear:hover { color: var(--info); }
+.log-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.8;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.log-body::-webkit-scrollbar { width: 4px; }
+.log-body::-webkit-scrollbar-track { background: transparent; }
+.log-body::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+.log-entry { display: flex; gap: 8px; align-items: baseline; }
+.log-time  { color: var(--dim); min-width: 70px; font-size: 10px; }
+.log-tag   { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 3px; letter-spacing: 1px; min-width: 42px; text-align: center; }
+.log-tag.ok   { background: rgba(0,255,157,0.2); color: var(--ok); }
+.log-tag.warn { background: rgba(255,215,0,0.2); color: var(--warn); }
+.log-tag.err  { background: rgba(255,59,92,0.2); color: var(--err); }
+.log-tag.info { background: rgba(0,200,255,0.2); color: var(--info); }
+.log-msg { color: var(--text); flex: 1; }
+
+/* ── EXPLANATION PANEL ── */
+.explain-box {
+  border-top: 1px solid rgba(255,255,255,0.05);
+  padding: 14px;
+  min-height: 160px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text);
+  background: var(--bg2);
+}
+.explain-box h4 { font-size: 12px; letter-spacing: 1px; margin-bottom: 8px; text-transform: uppercase; }
+.explain-box p  { color: rgba(200,224,240,0.75); }
+.explain-box .highlight { font-weight: 700; }
+
+/* ── SCENARIO TABS ── */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.tab {
+  flex: 1; padding: 10px 6px;
+  text-align: center;
+  font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+  cursor: pointer; color: var(--dim);
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.tab.active { color: var(--info); border-bottom-color: var(--info); }
+.tab:hover  { color: var(--text); }
+
+/* ── TOOLTIP ── */
+.tooltip {
+  position: absolute;
+  background: rgba(4,8,15,0.95);
+  border: 1px solid rgba(0,200,255,0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  pointer-events: none;
+  z-index: 100;
+  max-width: 200px;
+  line-height: 1.5;
+  display: none;
+  font-family: var(--mono);
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">📡</div>
+    <div class="logo-text">
+      <h1>SMPTE ST 2110 — FAULT SIMULATOR</h1>
+      <p>INTERACTIVE NETWORK FAULT SIMULATION TOOL</p>
+    </div>
+  </div>
+  <div class="system-status">
+    <div class="status-dot ok" id="sys-dot"></div>
+    <span id="sys-label" style="font-family:var(--mono);font-size:12px;color:var(--ok)">ALL SYSTEMS NOMINAL</span>
+  </div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="main">
+
+  <!-- LEFT SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <h3>⚡ Inject Fault</h3>
+
+      <button class="fault-btn ptp-btn" id="btn-ptp" onclick="triggerFault('ptp')">
+        <span class="btn-icon">⏰</span>
+        <span class="btn-text">
+          <span>PTP Clock Loss</span>
+          <span class="btn-sub">Kill Grandmaster Clock</span>
+        </span>
+      </button>
+
+      <button class="fault-btn path-btn" id="btn-path-a" onclick="triggerFault('pathA')">
+        <span class="btn-icon">🔴</span>
+        <span class="btn-text">
+          <span>Kill Path A</span>
+          <span class="btn-sub">Primary network path down</span>
+        </span>
+      </button>
+
+      <button class="fault-btn path-btn" id="btn-path-b" onclick="triggerFault('pathB')">
+        <span class="btn-icon">🔴</span>
+        <span class="btn-text">
+          <span>Kill Path B</span>
+          <span class="btn-sub">Redundant network path down</span>
+        </span>
+      </button>
+
+      <button class="fault-btn both-btn" id="btn-both" onclick="triggerFault('both')">
+        <span class="btn-icon">💀</span>
+        <span class="btn-text">
+          <span>Both Paths Down</span>
+          <span class="btn-sub">Total network failure</span>
+        </span>
+      </button>
+
+      <button class="reset-btn" onclick="resetAll()">
+        ↺ RESET ALL SYSTEMS
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>📊 Live Metrics</h3>
+      <div class="metric-card">
+        <div class="metric-label">PTP LOCK STATUS</div>
+        <div class="metric-value" id="m-ptp">● LOCKED — &lt;50ns</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">PATH A STATUS</div>
+        <div class="metric-value" id="m-path-a">● ACTIVE — 10GbE</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">PATH B STATUS</div>
+        <div class="metric-value" id="m-path-b">● ACTIVE — 10GbE</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">VIDEO STREAM</div>
+        <div class="metric-value" id="m-video">● NOMINAL — 4K60</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">AUDIO STREAM</div>
+        <div class="metric-value" id="m-audio">● NOMINAL — 8ch</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">PACKET LOSS</div>
+        <div class="metric-value" id="m-loss">0.000%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER CANVAS -->
+  <div class="canvas-area" id="canvas-area">
+    <canvas id="sim-canvas"></canvas>
+
+    <!-- Fault overlays -->
+    <div class="fault-overlay" id="overlay-ptp">
+      <div class="fault-banner ptp">
+        <h2>⚠️ PTP CLOCK LOST</h2>
+        <p>The <strong>Grandmaster Clock</strong> has gone offline. All devices are now running on their own internal clocks, which drift at different rates. Within milliseconds, video frames and audio samples begin to arrive <strong>out of sync</strong>. The receiver can no longer align the separate essence streams.</p>
+      </div>
+    </div>
+
+    <div class="fault-overlay" id="overlay-path">
+      <div class="fault-banner path">
+        <h2>🔴 PATH FAILURE DETECTED</h2>
+        <p><strong>ST 2022-7 Seamless Protection</strong> is active. The receiver detects missing packets on the failed path and seamlessly switches to the surviving path. <strong>Zero frames are lost.</strong> The stream continues without interruption as long as one path remains alive.</p>
+      </div>
+    </div>
+
+    <div class="fault-overlay" id="overlay-both">
+      <div class="fault-banner both">
+        <h2>💀 TOTAL PATH FAILURE</h2>
+        <p>Both Path A and Path B have failed simultaneously. ST 2022-7 has no remaining path to fall back to. <strong>All streams are lost.</strong> The broadcast goes dark. Manual intervention or path restoration is required immediately.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT LOG PANEL -->
+  <div class="log-panel">
+    <div class="log-header">
+      <span>🖥 System Event Log</span>
+      <span class="log-clear" onclick="clearLog()">CLEAR</span>
+    </div>
+    <div class="log-body" id="log-body"></div>
+
+    <div class="tabs">
+      <div class="tab active" id="tab-normal" onclick="setTab('normal')">Normal</div>
+      <div class="tab" id="tab-ptp" onclick="setTab('ptp')">PTP Loss</div>
+      <div class="tab" id="tab-path" onclick="setTab('path')">Path Fail</div>
+      <div class="tab" id="tab-both" onclick="setTab('both')">Both Down</div>
+    </div>
+    <div class="explain-box" id="explain-box">
+      <h4 style="color:var(--ok)">✅ Normal Operation</h4>
+      <p>All systems are running correctly. The <span class="highlight" style="color:var(--warn)">PTP Grandmaster</span> is locked and distributing timing to every device with sub-microsecond accuracy. Two redundant network paths (A &amp; B) carry identical copies of all streams. ST 2022-7 silently monitors both and selects the best packet from each path — zero loss, zero interruption.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- Tooltip -->
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+const state = {
+  ptpLost: false,
+  pathADown: false,
+  pathBDown: false,
+  time: 0,
+  ptpDrift: 0,
+  lipSyncError: 0,
+  frameGlitch: 0,
+  audioGlitch: 0,
+  t: 0
+};
+
+let animFrame;
+let logInterval;
+let metricInterval;
+
+// ═══════════════════════════════════════════
+//  CANVAS SETUP
+// ═══════════════════════════════════════════
+const canvas = document.getElementById('sim-canvas');
+const ctx = canvas.getContext('2d');
+const area = document.getElementById('canvas-area');
+
+function resize() {
+  canvas.width  = area.clientWidth;
+  canvas.height = area.clientHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ═══════════════════════════════════════════
+//  NODE POSITIONS (relative 0-1)
+// ═══════════════════════════════════════════
+function pos(rx, ry) {
+  return { x: rx * canvas.width, y: ry * canvas.height };
+}
+
+// ═══════════════════════════════════════════
+//  DRAW FUNCTIONS
+// ═══════════════════════════════════════════
+function drawNode(x, y, label, sub, color, icon, glitch=false) {
+  const W = 100, H = 60;
+  const cx = x - W/2, cy = y - H/2;
+
+  // Glitch offset
+  const gx = glitch ? (Math.random()-0.5)*6 : 0;
+  const gy = glitch ? (Math.random()-0.5)*3 : 0;
+
+  ctx.save();
+  ctx.translate(gx, gy);
+
+  // Box
+  ctx.beginPath();
+  ctx.roundRect(cx, cy, W, H, 10);
+  ctx.fillStyle = 'rgba(11,21,37,0.95)';
+  ctx.fill();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Glow
+  ctx.shadowColor = color;
+  ctx.shadowBlur = glitch ? 20 : 8;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Icon
+  ctx.font = '20px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(icon, x, y - 6);
+
+  // Label
+  ctx.font = 'bold 11px "Exo 2", sans-serif';
+  ctx.fillStyle = '#c8e0f0';
+  ctx.fillText(label, x, y + 10);
+
+  // Sub
+  ctx.font = '9px "Share Tech Mono", monospace';
+  ctx.fillStyle = glitch ? '#ff3b5c' : color;
+  ctx.fillText(sub, x, y + 22);
+
+  ctx.restore();
+}
+
+function drawLabel(x, y, text, color) {
+  ctx.font = '10px "Share Tech Mono", monospace';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.fillText(text, x, y);
+}
+
+// Draw animated flowing packet
+function drawPacket(x, y, color, size=5) {
+  ctx.beginPath();
+  ctx.arc(x, y, size, 0, Math.PI*2);
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 10;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+}
+
+// Draw path line
+function drawPath(x1, y1, x2, y2, color, dashed=false, opacity=1, label='', lost=false) {
+  ctx.save();
+  ctx.globalAlpha = opacity;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.strokeStyle = lost ? '#ff3b5c' : color;
+  ctx.lineWidth = lost ? 2 : 1.5;
+  if(dashed || lost) ctx.setLineDash([6,4]);
+  else ctx.setLineDash([]);
+  ctx.shadowColor = lost ? '#ff3b5c' : color;
+  ctx.shadowBlur = 5;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.shadowBlur = 0;
+
+  if(label) {
+    const mx = (x1+x2)/2, my = (y1+y2)/2 - 8;
+    ctx.font = '9px "Share Tech Mono",monospace';
+    ctx.fillStyle = lost ? '#ff3b5c' : color;
+    ctx.textAlign = 'center';
+    ctx.fillText(label, mx, my);
+  }
+  ctx.restore();
+}
+
+function drawX(x, y) {
+  ctx.save();
+  ctx.strokeStyle = '#ff3b5c';
+  ctx.lineWidth = 3;
+  ctx.shadowColor = '#ff3b5c';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.moveTo(x-10,y-10); ctx.lineTo(x+10,y+10);
+  ctx.moveTo(x+10,y-10); ctx.lineTo(x-10,y+10);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+// Animated packet along path
+function packetAlongPath(x1,y1,x2,y2,t,speed,color,active=true) {
+  if(!active) return;
+  const p = ((t*speed)%1);
+  const x = x1 + (x2-x1)*p;
+  const y = y1 + (y2-y1)*p;
+  drawPacket(x, y, color, 4);
+}
+
+// ═══════════════════════════════════════════
+//  MAIN RENDER LOOP
+// ═══════════════════════════════════════════
+function render(ts) {
+  state.t = (ts || 0) * 0.001;
+  const t = state.t;
+  const W = canvas.width, H = canvas.height;
+
+  // Clear
+  ctx.clearRect(0, 0, W, H);
+
+  // Background grid
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0,150,255,0.04)';
+  ctx.lineWidth = 1;
+  for(let x=0;x<W;x+=40){ ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke(); }
+  for(let y=0;y<H;y+=40){ ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke(); }
+  ctx.restore();
+
+  // ── POSITIONS ──
+  const ptp  = {x: W*0.5,  y: H*0.10};
+  const src  = {x: W*0.12, y: H*0.36};
+  const swA  = {x: W*0.35, y: H*0.30}; // Switch Path A
+  const swB  = {x: W*0.35, y: H*0.62}; // Switch Path B
+  const rcvr = {x: W*0.70, y: H*0.46}; // Receiver / ST2022-7
+  const dst  = {x: W*0.88, y: H*0.46};
+
+  const ptpOk    = !state.ptpLost;
+  const pathAOk  = !state.pathADown;
+  const pathBOk  = !state.pathBDown;
+  const anyPath  = pathAOk || pathBOk;
+  const glitch   = !ptpOk;
+  const fullLoss = !anyPath;
+
+  // ── PTP DISTRIBUTION LINES ──
+  const ptpColor = ptpOk ? '#ffd700' : '#ff3b5c';
+  drawPath(ptp.x, ptp.y+30, src.x,  src.y-30,  ptpColor, true, ptpOk?0.7:0.3, '', !ptpOk);
+  drawPath(ptp.x, ptp.y+30, swA.x,  swA.y-30,  ptpColor, true, ptpOk?0.7:0.3, '', !ptpOk);
+  drawPath(ptp.x, ptp.y+30, swB.x,  swB.y-30,  ptpColor, true, ptpOk?0.7:0.3, '', !ptpOk);
+  drawPath(ptp.x, ptp.y+30, rcvr.x, rcvr.y-30, ptpColor, true, ptpOk?0.7:0.3, '', !ptpOk);
+
+  // PTP packets flowing (when ok)
+  if(ptpOk) {
+    packetAlongPath(ptp.x, ptp.y+30, src.x,  src.y-30,  t, 0.4, '#ffd700');
+    packetAlongPath(ptp.x, ptp.y+30, swA.x,  swA.y-30,  t, 0.55,'#ffd700');
+    packetAlongPath(ptp.x, ptp.y+30, swB.x,  swB.y-30,  t, 0.48,'#ffd700');
+    packetAlongPath(ptp.x, ptp.y+30, rcvr.x, rcvr.y-30, t, 0.6, '#ffd700');
+  }
+
+  // ── PATH A: src → swA → rcvr ──
+  const colA = pathAOk ? '#00aaff' : '#ff3b5c';
+  drawPath(src.x+50, src.y-8, swA.x-50, swA.y+10, colA, false, pathAOk?1:0.4, 'PATH A', !pathAOk);
+  drawPath(swA.x+50, swA.y+10, rcvr.x-50, rcvr.y-10, colA, false, pathAOk?1:0.4, '', !pathAOk);
+
+  // ── PATH B: src → swB → rcvr ──
+  const colB = pathBOk ? '#00c8ff' : '#ff3b5c';
+  drawPath(src.x+50, src.y+8, swB.x-50, swB.y-10, colB, false, pathBOk?1:0.4, 'PATH B', !pathBOk);
+  drawPath(swB.x+50, swB.y-10, rcvr.x-50, rcvr.y+10, colB, false, pathBOk?1:0.4, '', !pathBOk);
+
+  // ── RCVR → DST ──
+  const streamColor = fullLoss ? '#ff3b5c' : (ptpOk ? '#00ff9d' : '#ffd700');
+  drawPath(rcvr.x+50, rcvr.y, dst.x-50, dst.y, streamColor, false, 1, '');
+
+  // ── FLOWING PACKETS ──
+  // Path A packets (video=blue, audio=green, anc=pink)
+  if(pathAOk) {
+    packetAlongPath(src.x+50,src.y-8,  swA.x-50,swA.y+10, t,    0.45, '#00aaff');
+    packetAlongPath(src.x+50,src.y-8,  swA.x-50,swA.y+10, t+0.3,0.45, '#00ff9d');
+    packetAlongPath(src.x+50,src.y-8,  swA.x-50,swA.y+10, t+0.6,0.45, '#ff4fa0');
+    packetAlongPath(swA.x+50,swA.y+10, rcvr.x-50,rcvr.y-10,t,   0.45, '#00aaff');
+    packetAlongPath(swA.x+50,swA.y+10, rcvr.x-50,rcvr.y-10,t+0.3,0.45,'#00ff9d');
+  }
+  // Path B packets
+  if(pathBOk) {
+    packetAlongPath(src.x+50,src.y+8,  swB.x-50,swB.y-10, t+0.15,0.40,'#00c8ff');
+    packetAlongPath(src.x+50,src.y+8,  swB.x-50,swB.y-10, t+0.5, 0.40,'#00ffcc');
+    packetAlongPath(swB.x+50,swB.y-10, rcvr.x-50,rcvr.y+10,t+0.15,0.40,'#00c8ff');
+    packetAlongPath(swB.x+50,swB.y-10, rcvr.x-50,rcvr.y+10,t+0.5, 0.40,'#00ffcc');
+  }
+
+  // Output stream
+  if(!fullLoss) {
+    const oc = ptpOk ? '#00ff9d' : '#ffd700';
+    packetAlongPath(rcvr.x+50,rcvr.y, dst.x-50,dst.y, t, 0.5, oc);
+    packetAlongPath(rcvr.x+50,rcvr.y, dst.x-50,dst.y, t+0.35, 0.5, oc);
+  }
+
+  // ── X MARKS for failed paths ──
+  if(!pathAOk) {
+    const mx = (src.x+50 + swA.x-50)/2;
+    const my = (src.y-8  + swA.y+10)/2;
+    drawX(mx, my);
+  }
+  if(!pathBOk) {
+    const mx = (src.x+50 + swB.x-50)/2;
+    const my = (src.y+8  + swB.y-10)/2;
+    drawX(mx, my);
+  }
+  if(!ptpOk) {
+    drawX(ptp.x, ptp.y+60);
+  }
+
+  // ── NODES ──
+  const ptpSub = ptpOk ? 'LOCKED <50ns' : 'OFFLINE !!!';
+  drawNode(ptp.x, ptp.y, 'PTP GRANDMASTER', ptpSub, ptpOk?'#ffd700':'#ff3b5c', '⏰', !ptpOk);
+
+  drawNode(src.x, src.y, 'SOURCE', 'Camera / Server', '#00aaff', '📹', glitch);
+
+  const swAcol = pathAOk ? '#00aaff' : '#ff3b5c';
+  const swBcol = pathBOk ? '#00c8ff' : '#ff3b5c';
+  drawNode(swA.x, swA.y, 'SWITCH A', pathAOk?'Active — 10GbE':'FAILED !!!', swAcol, '🔀', !pathAOk);
+  drawNode(swB.x, swB.y, 'SWITCH B', pathBOk?'Redundant — 10GbE':'FAILED !!!', swBcol, '🔀', !pathBOk);
+
+  const rcvrLabel = fullLoss ? 'NO SIGNAL' : (ptpOk ? 'ST 2022-7 OK' : 'DRIFT ALERT');
+  const rcvrCol   = fullLoss ? '#ff3b5c' : (ptpOk ? '#00ff9d' : '#ffd700');
+  drawNode(rcvr.x, rcvr.y, 'RECEIVER', rcvrLabel, rcvrCol, '📡', fullLoss || glitch);
+
+  const dstLabel = fullLoss ? 'SIGNAL LOST' : (ptpOk ? 'NOMINAL' : 'LIP-SYNC ERR');
+  const dstCol   = fullLoss ? '#ff3b5c' : (ptpOk ? '#00ff9d' : '#ffd700');
+  drawNode(dst.x, dst.y, 'DESTINATION', dstLabel, dstCol, '🖥️', fullLoss || glitch);
+
+  // ── LEGEND ──
+  const ly = H - 34;
+  ctx.font = '10px "Share Tech Mono",monospace';
+  ctx.textAlign = 'left';
+
+  const items = [
+    ['#ffd700', '── PTP Timing'],
+    ['#00aaff', '── Video (Path A)'],
+    ['#00ff9d', '── Audio'],
+    ['#ff4fa0', '── ANC Data'],
+    ['#00c8ff', '── Path B (Redundant)'],
+    ['#ff3b5c', '── FAULT'],
+  ];
+  let lx = 20;
+  items.forEach(([c,t])=>{
+    ctx.fillStyle = c;
+    ctx.fillText(t, lx, ly);
+    lx += 135;
+  });
+
+  // ── DRIFT VISUALIZER (when PTP lost) ──
+  if(!ptpOk) {
+    const drift = Math.sin(t*2.3)*12 + Math.sin(t*7)*5;
+    const driftX = dst.x;
+    const driftY = H * 0.78;
+    ctx.save();
+    ctx.font = 'bold 11px "Exo 2",sans-serif';
+    ctx.fillStyle = '#ffd700';
+    ctx.textAlign = 'center';
+    ctx.fillText('TIMING DRIFT DETECTED', driftX, driftY - 28);
+    ctx.font = '24px "Share Tech Mono",monospace';
+    ctx.fillStyle = '#ff3b5c';
+    ctx.fillText(`+${Math.abs(drift).toFixed(1)}ms`, driftX, driftY);
+    ctx.font = '10px "Share Tech Mono",monospace';
+    ctx.fillStyle = 'rgba(255,215,0,0.6)';
+    ctx.fillText('audio/video sync error', driftX, driftY + 16);
+    ctx.restore();
+  }
+
+  // ── ST 2022-7 STATUS BADGE ──
+  if(pathAOk !== pathBOk) {
+    // One path down, protection active
+    const bx = rcvr.x, by = H*0.72;
+    ctx.save();
+    ctx.font = 'bold 10px "Exo 2",sans-serif';
+    ctx.textAlign = 'center';
+    // flashing badge
+    const alpha = 0.6 + 0.4*Math.sin(t*6);
+    ctx.fillStyle = `rgba(0,255,157,${alpha})`;
+    ctx.fillText('✓ ST 2022-7 PROTECTION ACTIVE', bx, by);
+    ctx.font = '9px "Share Tech Mono",monospace';
+    ctx.fillStyle = 'rgba(200,224,240,0.6)';
+    ctx.fillText(`Seamlessly using ${pathAOk?'PATH A':'PATH B'} only`, bx, by+14);
+    ctx.restore();
+  }
+
+  if(fullLoss) {
+    const bx = W/2, by = H*0.72;
+    ctx.save();
+    const alpha = 0.6 + 0.4*Math.sin(t*8);
+    ctx.font = `bold 14px "Exo 2",sans-serif`;
+    ctx.fillStyle = `rgba(255,59,92,${alpha})`;
+    ctx.textAlign = 'center';
+    ctx.fillText('⚡ BROADCAST SIGNAL LOST — NO PATH AVAILABLE', bx, by);
+    ctx.restore();
+  }
+
+  animFrame = requestAnimationFrame(render);
+}
+
+// ═══════════════════════════════════════════
+//  FAULT LOGIC
+// ═══════════════════════════════════════════
+let currentFault = null;
+
+function triggerFault(type) {
+  // Reset first
+  resetState();
+
+  // Highlight button
+  document.querySelectorAll('.fault-btn').forEach(b=>b.classList.remove('active'));
+
+  if(type === 'ptp') {
+    state.ptpLost = true;
+    document.getElementById('btn-ptp').classList.add('active');
+    showOverlay('ptp');
+    updateMetrics();
+    setTab('ptp');
+    log('err', 'CRITICAL', 'PTP Grandmaster Clock has gone offline');
+    setTimeout(()=>log('warn','TIMING','Device clocks now free-running — drift accumulating'),800);
+    setTimeout(()=>log('err','SYNC','Lip-sync error detected: video/audio delta > 2ms'),1800);
+    setTimeout(()=>log('err','VIDEO','Frame alignment lost — receiver buffer overflow'),3000);
+    setTimeout(()=>log('warn','SYSTEM','Devices searching for backup PTP source...'),4200);
+  }
+  else if(type === 'pathA') {
+    state.pathADown = true;
+    document.getElementById('btn-path-a').classList.add('active');
+    showOverlay('path');
+    updateMetrics();
+    setTab('path');
+    log('warn','NETWORK','Path A switch failure detected');
+    setTimeout(()=>log('info','2022-7','ST 2022-7 receiver detected packet loss on Path A'),400);
+    setTimeout(()=>log('ok','2022-7','Seamless protection engaged — switching to Path B'),600);
+    setTimeout(()=>log('ok','STREAM','Zero packet loss — all streams intact on Path B'),900);
+    setTimeout(()=>log('warn','SYSTEM','Operating on single redundant path — vulnerability elevated'),2000);
+  }
+  else if(type === 'pathB') {
+    state.pathBDown = true;
+    document.getElementById('btn-path-b').classList.add('active');
+    showOverlay('path');
+    updateMetrics();
+    setTab('path');
+    log('warn','NETWORK','Path B (redundant) switch failure detected');
+    setTimeout(()=>log('info','2022-7','ST 2022-7 receiver detected packet loss on Path B'),400);
+    setTimeout(()=>log('ok','2022-7','Seamless protection engaged — using Path A only'),600);
+    setTimeout(()=>log('ok','STREAM','Zero packet loss — all streams intact on Path A'),900);
+    setTimeout(()=>log('warn','SYSTEM','Redundancy lost — no failover available if Path A fails'),2000);
+  }
+  else if(type === 'both') {
+    state.pathADown = true;
+    state.pathBDown = true;
+    document.getElementById('btn-both').classList.add('active');
+    showOverlay('both');
+    updateMetrics();
+    setTab('both');
+    log('err','CRITICAL','Path A failure detected');
+    setTimeout(()=>log('err','CRITICAL','Path B failure detected simultaneously'),300);
+    setTimeout(()=>log('err','2022-7','ST 2022-7: no surviving path available'),500);
+    setTimeout(()=>log('err','STREAM','VIDEO STREAM LOST — buffer depleted'),800);
+    setTimeout(()=>log('err','STREAM','AUDIO STREAM LOST'),900);
+    setTimeout(()=>log('err','STREAM','ANC DATA STREAM LOST'),1000);
+    setTimeout(()=>log('err','BROADCAST','ON-AIR SIGNAL LOST — complete outage'),1200);
+  }
+  currentFault = type;
+}
+
+function resetState() {
+  state.ptpLost   = false;
+  state.pathADown = false;
+  state.pathBDown = false;
+}
+
+function resetAll() {
+  resetState();
+  currentFault = null;
+  document.querySelectorAll('.fault-btn').forEach(b=>b.classList.remove('active'));
+  hideOverlays();
+  updateMetrics();
+  setTab('normal');
+  log('ok','SYSTEM','All faults cleared — systems restored to nominal');
+  setTimeout(()=>log('ok','PTP','Grandmaster Clock lock re-established — <50ns'),500);
+  setTimeout(()=>log('ok','PATH-A','Path A restored — 10GbE nominal'),800);
+  setTimeout(()=>log('ok','PATH-B','Path B restored — 10GbE nominal'),1100);
+  setTimeout(()=>log('ok','STREAM','All streams nominal — 4K60 video, 8ch audio, ANC'),1500);
+}
+
+// ═══════════════════════════════════════════
+//  OVERLAYS
+// ═══════════════════════════════════════════
+function showOverlay(type) {
+  hideOverlays();
+  if(type === 'ptp')  document.getElementById('overlay-ptp').classList.add('visible');
+  if(type === 'path') document.getElementById('overlay-path').classList.add('visible');
+  if(type === 'both') document.getElementById('overlay-both').classList.add('visible');
+  setTimeout(hideOverlays, 4000);
+}
+function hideOverlays() {
+  document.querySelectorAll('.fault-overlay').forEach(o=>o.classList.remove('visible'));
+}
+
+// ═══════════════════════════════════════════
+//  METRICS UPDATE
+// ═══════════════════════════════════════════
+function updateMetrics() {
+  const m = (id, val, cls) => {
+    const el = document.getElementById(id);
+    el.textContent = val;
+    el.className = 'metric-value ' + (cls||'');
+  };
+  const sys = document.getElementById('sys-dot');
+  const label = document.getElementById('sys-label');
+
+  if(state.ptpLost) {
+    m('m-ptp','⚠ UNLOCKED — FREE-RUN','err');
+    m('m-video','⚠ DRIFT — LIP-SYNC ERR','warn');
+    m('m-audio','⚠ DRIFT — OUT OF SYNC','warn');
+    m('m-loss','0.000%','');
+    sys.className='status-dot err'; label.textContent='PTP FAULT DETECTED'; label.style.color='var(--err)';
+  } else if(state.pathADown && state.pathBDown) {
+    m('m-ptp','● LOCKED — <50ns','');
+    m('m-path-a','✗ FAILED — NO LINK','err');
+    m('m-path-b','✗ FAILED — NO LINK','err');
+    m('m-video','✗ SIGNAL LOST','err');
+    m('m-audio','✗ SIGNAL LOST','err');
+    m('m-loss','100.000%','err');
+    sys.className='status-dot err'; label.textContent='TOTAL PATH FAILURE'; label.style.color='var(--err)';
+  } else if(state.pathADown) {
+    m('m-ptp','● LOCKED — <50ns','');
+    m('m-path-a','✗ FAILED — NO LINK','err');
+    m('m-path-b','● ACTIVE (ONLY PATH)','warn');
+    m('m-video','● NOMINAL via Path B','');
+    m('m-audio','● NOMINAL via Path B','');
+    m('m-loss','0.000%','');
+    sys.className='status-dot warn'; label.textContent='PATH A FAILURE — PROTECTED'; label.style.color='var(--warn)';
+  } else if(state.pathBDown) {
+    m('m-ptp','● LOCKED — <50ns','');
+    m('m-path-a','● ACTIVE (ONLY PATH)','warn');
+    m('m-path-b','✗ FAILED — NO LINK','err');
+    m('m-video','● NOMINAL via Path A','');
+    m('m-audio','● NOMINAL via Path A','');
+    m('m-loss','0.000%','');
+    sys.className='status-dot warn'; label.textContent='PATH B FAILURE — PROTECTED'; label.style.color='var(--warn)';
+  } else {
+    m('m-ptp','● LOCKED — <50ns','');
+    m('m-path-a','● ACTIVE — 10GbE','');
+    m('m-path-b','● ACTIVE — 10GbE','');
+    m('m-video','● NOMINAL — 4K60','');
+    m('m-audio','● NOMINAL — 8ch','');
+    m('m-loss','0.000%','');
+    sys.className='status-dot ok'; label.textContent='ALL SYSTEMS NOMINAL'; label.style.color='var(--ok)';
+  }
+}
+
+// ═══════════════════════════════════════════
+//  LOG
+// ═══════════════════════════════════════════
+let logCount = 0;
+function log(level, tag, msg) {
+  const body = document.getElementById('log-body');
+  const now = new Date();
+  const time = now.toTimeString().split(' ')[0] + '.' + String(now.getMilliseconds()).padStart(3,'0');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.style.opacity = '0';
+  entry.style.transition = 'opacity 0.3s';
+  entry.innerHTML = `<span class="log-time">${time}</span><span class="log-tag ${level}">${tag}</span><span class="log-msg">${msg}</span>`;
+  body.appendChild(entry);
+  requestAnimationFrame(()=>{ entry.style.opacity='1'; });
+  body.scrollTop = body.scrollHeight;
+  logCount++;
+  if(logCount > 80) {
+    body.removeChild(body.firstChild);
+    logCount--;
+  }
+}
+function clearLog() {
+  document.getElementById('log-body').innerHTML = '';
+  logCount = 0;
+}
+
+// Auto log in normal state
+function startAutoLog() {
+  logInterval = setInterval(()=>{
+    if(!state.ptpLost && !state.pathADown && !state.pathBDown) {
+      const msgs = [
+        ['ok','STREAM','Video 4K60: 0 packet loss, 0 reorders'],
+        ['ok','PTP','Clock offset: +' + (Math.random()*30|0) + 'ns — nominal'],
+        ['ok','2022-7','Dual-path healthy — A&B nominal'],
+        ['ok','AUDIO','48kHz 24-bit PCM — 0 sample drop'],
+        ['info','NMOS','IS-04 heartbeat: 12 devices registered'],
+        ['ok','STREAM','ANC data: timecode + captions flowing'],
+        ['ok','NETWORK','Multicast groups stable — IGMP OK'],
+      ];
+      const m = msgs[Math.floor(Math.random()*msgs.length)];
+      log(m[0],m[1],m[2]);
+    }
+  }, 2200);
+}
+
+// ═══════════════════════════════════════════
+//  TABS / EXPLANATION
+// ═══════════════════════════════════════════
+const explanations = {
+  normal: {
+    color: 'var(--ok)', title: '✅ Normal Operation',
+    body: `All systems running correctly. The <b style="color:var(--warn)">PTP Grandmaster</b> distributes timing with sub-microsecond accuracy. Two redundant paths (A & B) carry identical stream copies. <b style="color:var(--ok)">ST 2022-7</b> silently monitors both, selecting the best packets — achieving zero loss and zero interruption under normal conditions.`
+  },
+  ptp: {
+    color: 'var(--warn)', title: '⚠️ PTP Clock Loss',
+    body: `The <b style="color:var(--warn)">Grandmaster Clock</b> goes offline. Each device now runs its own internal clock — which drift at different rates. Within milliseconds, video and audio timestamps diverge. The receiver can no longer align the separate essence streams. Result: <b style="color:var(--err)">lip-sync errors, frame tears, and audio artifacts</b>. Streams don't stop — they desynchronize.`
+  },
+  path: {
+    color: 'var(--ok)', title: '🛡️ Single Path Failure',
+    body: `One network path (A or B) fails. <b style="color:var(--ok)">ST 2022-7 Seamless Protection</b> immediately detects missing packets on the failed path and switches to the surviving path. The transition is <b style="color:var(--ok)">completely invisible</b> — zero frames lost, zero audio dropouts. The system continues in a vulnerable state on one path only.`
+  },
+  both: {
+    color: 'var(--err)', title: '💀 Total Path Failure',
+    body: `Both Path A and Path B fail simultaneously. <b style="color:var(--err)">ST 2022-7 has no surviving path</b> to fall back to. All streams — video, audio, and ancillary data — are lost. The broadcast goes dark immediately. Restoration requires physical intervention to restore at least one network path.`
+  }
+};
+
+function setTab(t) {
+  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById('tab-'+t).classList.add('active');
+  const e = explanations[t];
+  const box = document.getElementById('explain-box');
+  box.innerHTML = `<h4 style="color:${e.color}">${e.title}</h4><p>${e.body}</p>`;
+}
+
+// ═══════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════
+// Initial logs
+setTimeout(()=>log('ok','SYSTEM','ST 2110 facility online — all nodes discovered'),100);
+setTimeout(()=>log('ok','PTP','Grandmaster Clock locked — GPS disciplined, offset <50ns'),400);
+setTimeout(()=>log('ok','PATH-A','Path A online — Spine→Leaf 10GbE nominal'),700);
+setTimeout(()=>log('ok','PATH-B','Path B online — Redundant path nominal'),1000);
+setTimeout(()=>log('ok','2022-7','Dual-path protection active — ST 2022-7 engaged'),1300);
+setTimeout(()=>log('info','NMOS','IS-04 registry: 12 devices, 18 senders, 24 receivers'),1700);
+setTimeout(()=>log('ok','STREAM','4K60 video + 8ch audio + ANC all flowing nominal'),2100);
+
+updateMetrics();
+startAutoLog();
+render();
+</script>
+</body>
+</html>
