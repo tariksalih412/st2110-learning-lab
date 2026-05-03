@@ -706,9 +706,9 @@ function drawChain(t) {
     // Label
     const lines=n.label.split('\n');
     lines.forEach((l,i)=>{
-      cctx.font=`600 7px 'Barlow Condensed'`;
+      cctx.font=`700 10px 'Barlow Condensed'`;
       cctx.fillStyle=nodeFault?col:'#a0c0e0';
-      cctx.fillText(l,px,py+6+i*9);
+      cctx.fillText(l,px,py+8+i*12);
     });
     // Status dot
     cctx.beginPath();cctx.arc(x+W2-8,y+8,2.5,0,Math.PI*2);
@@ -736,7 +736,7 @@ function drawChain(t) {
     cctx.save();
     const alpha=.6+.4*Math.sin(t*5);
     cctx.globalAlpha=alpha;
-    cctx.font=`700 9px 'Barlow Condensed'`;
+    cctx.font=`700 13px 'Barlow Condensed'`;
     cctx.fillStyle='#00ff88';
     cctx.textAlign='center';
     cctx.fillText(`✓ ST 2022-7 ACTIVE — PATH ${isAdown?'B':'A'} ONLY`,W*.56,H*.08);
